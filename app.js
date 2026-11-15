@@ -1518,6 +1518,11 @@ function render() {
   const keepScroll = window.scrollY;
   const active = document.activeElement;
   const focusKey = active?.dataset?.input;
+  // a sync arriving while a settings field is being edited would wipe what was typed: redraw after the field is left
+  if (ui.view === 'settings' && active?.closest?.('#app') && active.matches('input, textarea, select') && focusKey !== 'search') {
+    ui.renderPending = true; return;
+  }
+  ui.renderPending = false;
   app.innerHTML = onboarding ? viewOnboarding()
     : ui.view === 'stats' ? viewStats() : ui.view === 'scan' ? viewScan() : ui.view === 'settings' ? viewSettings()
     : ui.view === 'sell' ? viewSell() : ui.view === 'orders' ? viewOrders() : ui.view === 'record' ? viewRecord() : viewHome();
@@ -1869,6 +1874,32 @@ document.addEventListener('input', e => {
     case 'gmodel': return S.savePrefs({ geminiModel: t.value.trim() || DEFAULT_MODEL });
   }
 });
+
+// redraw postponed while editing (see render); wait a moment so a tap on a button still lands on it
+document.addEventListener('focusout', () => {
+  if (!ui.renderPending) return;
+  setTimeout(() => { if (ui.renderPending) render(); }, 300); // render() waits again if another field got the focus
+});
+
+// LINE settings save as soon as a value changes (no need to press บันทึก)
+document.addEventListener('change', e => {
+  const k = e.target.dataset?.line;
+  if (!k) return;
+  // after the tap that moved the focus has landed (saving redraws the page)
+  setTimeout(() => saveLineField(k, e.target.value), 250);
+});
+function saveLineField(k, raw) {
+  const v = String(raw || '').trim();
+  if (k === 'from' || k === 'to') {
+    const from = k === 'from' ? v : lineCfg().from, to = k === 'to' ? v : lineCfg().to;
+    if (!from || !to || from >= to) return toast('เวลาเปิดต้องก่อนเวลาปิด');
+    saveLine({ from, to });
+    return toast(`บันทึกเวลาแล้ว · เปิด ${from}–${to} น.`);
+  }
+  const val = k === 'prep' ? Math.max(0, Math.min(120, Number(v) || 0)) : k === 'stampGoal' ? Math.max(1, Math.min(99, Number(v) || 10)) : v.slice(0, k === 'name' ? 40 : 120);
+  saveLine({ [k]: val });
+  toast('บันทึกแล้ว');
+}
 
 document.addEventListener('change', async e => {
   const t = e.target;
