@@ -428,3 +428,5 @@ details.more-settings section + section { margin-top: 14px; }
 .style-btn:active { transform: scale(.95); border-color: var(--accent); }
 .style-btn b { font-family: var(--display); font-weight: 500; color: var(--accent); }
 .style-prices .lbl { min-width: 0; }
+
+.back-btn { flex: none; font-size: 1.6rem; display: grid; place-items: center; padding: 0 0 3px; }

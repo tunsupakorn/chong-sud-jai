@@ -62,10 +62,10 @@ const SYNC = {
   local: ['ในเครื่องนี้', 'local'], 'signed-out': ['ยังไม่ล็อกอิน', 'warn'], pending: ['กำลังซิงก์…', 'pending'],
   synced: ['ซิงก์แล้ว', 'ok'], error: ['ซิงก์ผิดพลาด', 'bad'],
 };
-function header(title) {
+function header(title, back) {
   const [label, cls] = SYNC[state.syncStatus] || SYNC.local;
   return `<header class="top">
-    <div class="brand"><img src="icons/icon.svg" alt="" width="40" height="40"><div><h1>${title || 'จุกจิกการค้า'}</h1><small>บัญชีร้าน</small></div></div>
+    <div class="brand">${back ? `<button class="icon-btn back-btn" data-action="back" data-to="${back}" aria-label="ย้อนกลับ">‹</button>` : ''}<img src="icons/icon.svg" alt="" width="40" height="40"><div><h1>${title || 'จุกจิกการค้า'}</h1><small>บัญชีร้าน</small></div></div>
     <button class="sync ${cls}" data-nav="settings" title="สถานะการซิงก์"><i></i>${label}</button>
   </header>`;
 }
@@ -242,7 +242,7 @@ function viewScan() {
   const selected = sc.items.filter(i => i.keep).length;
   const off = sc.busy || !hasKey ? 'disabled' : '';
   const tray = ui.tray;
-  return `${header('อ่านสลิป')}
+  return `${header('อ่านสลิป', 'record')}
     ${!hasKey ? `<section class="card notice"><p>🔑 ต้องใส่ Gemini API key ก่อน (ฟรี) เพื่อให้จุกจิกอ่านสลิปได้</p>
       <button class="btn primary sm" data-action="goto-gemini">ไปใส่ key</button></section>` : ''}
     <section class="pick ${off}" data-drop>
@@ -1304,7 +1304,12 @@ function render() {
   window.scrollTo(0, keepScroll);
 }
 
-function go(view) { ui.view = view; window.scrollTo(0, 0); render(); }
+function go(view) {
+  if (view === 'scan' && ui.view !== 'scan') history.pushState({ v: 'scan' }, '');
+  else if (view !== 'scan' && history.state?.v === 'scan') history.replaceState(null, '');
+  ui.view = view; window.scrollTo(0, 0); render();
+}
+window.addEventListener('popstate', () => { if (ui.view === 'scan') { if ($('#sheet').open) $('#sheet').close(); ui.view = 'record'; window.scrollTo(0, 0); render(); } });
 
 // ---------- events ----------
 document.addEventListener('click', async e => {
@@ -1318,6 +1323,7 @@ document.addEventListener('click', async e => {
     case 'edit': return openEntry(state.tx.find(t => t.id === el.dataset.id));
     // --- sell ---
     case 'sell-add': return tapMenu(el.dataset.id);
+    case 'back': if (history.state?.v === 'scan') return history.back(); return go(el.dataset.to);
     case 'sell-undo': cartUndo(el.dataset.id); return render();
     case 'style-add': cartAdd(el.dataset.id, 1, el.dataset.s); if (navigator.vibrate) navigator.vibrate(10); $('#sheet').close(); return render();
     case 'sell-tab': ui.sellTab = el.dataset.t; return render();
