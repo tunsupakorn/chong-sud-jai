@@ -276,7 +276,7 @@ $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.targ
 // ---------- boot ----------
 async function boot() {
   try {
-    if (!LIFF_ID) throw new Error('ยังไม่ได้ตั้งค่า LIFF ID ใน liff/config.js');
+    if (!LIFF_ID || !API_BASE) throw new Error('ร้านยังตั้งค่าระบบสั่งไม่เสร็จ (liff/config.js)');
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
     try { ui.cart = JSON.parse(sessionStorage.getItem('kaa_cart') || '[]'); } catch {}

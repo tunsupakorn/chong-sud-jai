@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as Shop from '../shop.js';
+import * as Shop from '../src/shop.js';
 
 const menu = [
   { id: 'm_thaitea', name: 'ชาไทย', emoji: '🧋', prices: { blend: 35, iced: 30, hot: 25 }, price: 35, cost: 12, group: 'drink' },

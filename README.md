@@ -82,34 +82,42 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 ส่งมอบแล้วยอดขายลงบัญชีอัตโนมัติ (นับในรายงานหน้าขาย ปิดยอด และ Google Sheet เหมือนบิลหน้าร้าน)
 
 ```
-ลูกค้า LINE ── LIFF (liff/ บน GitHub Pages) ──► Cloud Functions "api" ──► Firestore ◄── แอป POS (เจ้าของร้าน)
-LINE Platform ── webhook ──────────────────────► Cloud Functions "webhook"     │
-                 ◄── push "น้ำพร้อมแล้ว" ─────── Cloud Functions "onOrderUpdated" ◄┘
+ลูกค้า LINE ── LIFF (liff/ บน GitHub Pages) ──┐
+LINE Platform ── webhook ─────────────────────┼──► Cloudflare Worker (worker/, ฟรี) ──► Firestore ◄── แอป POS อ่านออเดอร์สด
+แอป POS ── กดปุ่มรับ/เสร็จ/รับเงิน ────────────┘        └──► LINE push "น้ำพร้อมแล้ว"
 ```
+ใช้ Firebase แผนฟรี (Spark) ต่อได้ ไม่ต้องผูกบัตร
 
 ### 5.1 สร้างบัญชี LINE
 1. **manager.line.biz** › สร้าง LINE Official Account ของร้าน
 2. ตั้งค่า › **Messaging API** › เปิดใช้งาน (สร้าง Provider ใหม่ชื่อร้าน)
 3. **developers.line.biz** › เลือก Provider › channel Messaging API:
    - แท็บ Basic settings: คัดลอก **Channel secret**
-   - คัดลอก **Channel ID** ด้วย (ระบบออก access token อายุสั้นเองจาก ID + secret ไม่ต้อง issue long-lived token)
+   - คัดลอก **Channel ID** ด้วย (Worker ออก access token อายุสั้นเองจาก ID + secret ไม่ต้อง issue long-lived token)
 4. Provider เดียวกัน › **Create a new channel › LINE Login** (ประเภท Web app) › คัดลอก **Channel ID**
 5. ใน LINE Login channel › แท็บ **LIFF** › Add:
    - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/jukjik-kaa/liff/index.html`
    - Scopes: `openid`, `profile`, `chat_message.write` · Bot link feature: **On (Aggressive)** แล้วเลือกบัญชี OA ของร้าน
    - คัดลอก **LIFF ID** (เช่น `2001234567-AbCdEfGh`)
 
-### 5.2 Deploy Cloud Functions (ต้องใช้ Firebase แผน Blaze)
-1. Firebase Console › ⚙️ › Usage and billing › เปลี่ยนเป็น **Blaze** › ตั้ง **Budget alert** (เช่น ฿50/เดือน)
-   ร้านเดียวใช้ไม่เกินโควตาฟรีของ Cloud Functions แทบแน่นอน
-2. บนคอม: `npm i -g firebase-tools` › `firebase login` › ในโฟลเดอร์ repo: `firebase use jukjik-kaa-4fae`
-3. `cp functions/.env.example functions/.env` แล้วใส่ `LINE_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_ID` และ `LIFF_ID` (ไฟล์นี้ไม่ใช่ความลับ commit ได้)
-4. ใส่ค่าลับ (**ห้ามใส่ในไฟล์ใน repo เพราะ repo เป็น public**): `firebase functions:secrets:set LINE_CHANNEL_SECRET`
-5. `cd functions && npm install && npm test && cd ..` › `firebase deploy --only functions,firestore:indexes`
-6. จะได้ URL 2 ตัว:
-   - `…/webhook` › ใส่ใน Messaging API channel › **Webhook URL** › Verify › เปิด **Use webhook**
-   - `…/api` › ตรวจว่าตรงกับ `API_BASE` ใน `liff/config.js`
-7. แก้ `liff/config.js` ใส่ `LIFF_ID` › commit ขึ้น GitHub
+### 5.2 Deploy Cloudflare Worker (ฟรี ไม่ต้องผูกบัตร)
+1. สมัคร **dash.cloudflare.com** (อีเมลอย่างเดียว) › Workers & Pages › เลือกชื่อ subdomain `*.workers.dev`
+2. **Service account ของ Firebase:** Firebase Console › ⚙️ Project settings › **Service accounts** › **Generate new private key** › ได้ไฟล์ JSON
+   (ไฟล์นี้คือกุญแจเข้าฐานข้อมูล **ห้าม** commit หรือส่งในแชท)
+3. บนคอม: `cd worker && npm install && npm test` › `npx wrangler login` › `npx wrangler deploy`
+   จะได้ URL เช่น `https://jukjik-kaa-line.<ชื่อบัญชี>.workers.dev`
+4. ใส่ค่าลับ 2 ตัว (Cloudflare dashboard › Worker › Settings › **Variables and Secrets** › Add › Type: Secret หรือใช้คำสั่ง):
+   - `LINE_CHANNEL_SECRET` = Channel secret ของ Messaging API channel: `npx wrangler secret put LINE_CHANNEL_SECRET`
+   - `FIREBASE_SERVICE_ACCOUNT` = เนื้อหาไฟล์ JSON ทั้งไฟล์: `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < ไฟล์.json`
+5. ใส่ URL ของ Worker:
+   - `liff/config.js` › `API_BASE` และ `LIFF_ID`
+   - `firebase-config.js` › `lineApi`
+   - `worker/wrangler.toml` › `LIFF_ID` แล้ว `npx wrangler deploy` อีกครั้ง
+6. Messaging API channel › **Webhook URL** = `<URL ของ Worker>/webhook` › Verify › เปิด **Use webhook**
+7. commit ขึ้น GitHub
+
+ค่าที่ไม่ใช่ความลับ (Channel ID, อีเมลเจ้าของร้าน, project id) อยู่ใน `worker/wrangler.toml`
+แผนฟรีของ Workers ใช้ได้วันละ 100,000 request เกินแล้วแค่หยุดทำงานถึงวันถัดไป ไม่มีบิล
 
 ### 5.3 ตั้งค่า OA
 - LINE OA Manager › ตอบกลับอัตโนมัติ: **ปิด** "ข้อความตอบกลับอัตโนมัติ" (บอทตอบเอง) แต่เปิด **แชท** ไว้ได้ เจ้าของยังคุยกับลูกค้าเองได้
@@ -141,7 +149,7 @@ LINE Platform ── webhook ─────────────────
 | `qr.js` | อ่าน QR บนสลิปในเครื่อง (เลขอ้างอิงธนาคาร กันสลิปซ้ำ) |
 | `apps-script/` | สคริปต์ฝั่ง Google Sheet (Apps Script) |
 | `liff/` | หน้าสั่งน้ำใน LINE (LIFF) ของลูกค้า |
-| `functions/` | Cloud Functions: API ของหน้า LIFF, LINE webhook, แจ้งลูกค้า/บันทึกยอดเมื่อออเดอร์เปลี่ยนสถานะ |
+| `worker/` | Cloudflare Worker: API ของหน้า LIFF, LINE webhook, ปุ่มจัดการออเดอร์ของร้าน (แจ้งลูกค้า/บันทึกยอดขาย) |
 | `firebase-config.js` | ค่า Firebase ของคุณ |
 | `firestore.rules` | กฎความปลอดภัยฐานข้อมูล |
 | `sw.js`, `manifest.webmanifest`, `icons/` | ทำให้ติดตั้งเป็นแอปและใช้ออฟไลน์ได้ |

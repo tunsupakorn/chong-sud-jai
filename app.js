@@ -848,6 +848,7 @@ function lineCard() {
       <label>เวลาทำ (นาที)<input type="number" inputmode="numeric" min="0" max="120" value="${esc(c.prep)}" data-line="prep"></label>
       <label>สะสมครบ (แก้ว)<input type="number" inputmode="numeric" min="1" max="99" value="${esc(c.stampGoal)}" data-line="stampGoal"></label>
     </div>
+    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิกการค้า" value="${esc(c.name || '')}" data-line="name"></label>
     <label class="line-note">ประกาศถึงลูกค้า<input maxlength="120" placeholder="เช่น วันนี้มะม่วงหมด" value="${esc(c.note)}" data-line="note"></label>
     <button class="btn primary sm" data-action="line-save">บันทึก</button>
     ${state.settings.promptpay ? '' : '<p class="small muted">ยังไม่ได้ตั้งพร้อมเพย์ร้าน ลูกค้าจะเลือกได้แค่เงินสดตอนรับ</p>'}
@@ -865,7 +866,7 @@ function orderCard(o) {
     : '<span class="pill">💵 เงินสดตอนรับ</span>';
   const confirmPP = o.payMethod === 'promptpay' && !o.paid ? `<button class="btn ghost sm" data-action="ord-paid" data-id="${esc(o.id)}">✓ เงินเข้าแล้ว</button>` : '';
   const actions = o.status === 'new'
-    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="accepted">รับออเดอร์</button>${confirmPP}
+    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="accept">รับออเดอร์</button>${confirmPP}
        <button class="btn danger sm" data-action="ord-cancel" data-id="${esc(o.id)}">ยกเลิก</button>`
     : o.status === 'accepted'
     ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="ready">ทำเสร็จ · แจ้งลูกค้า</button>${confirmPP}
@@ -919,8 +920,8 @@ function watchNewOrders() {
   toast(`💚 ออเดอร์ LINE ใหม่ ${fresh.map(o => o.no).join(', ')}`);
 }
 const orderById = id => state.orders.find(o => o.id === id);
-async function orderUpdate(id, patch, msg) {
-  try { await S.updateOrder(id, patch); if (msg) toast(msg); } catch (e) { toast('อัปเดตไม่ได้: ' + e.message); }
+async function orderAction(id, action, msg, reason) {
+  try { await S.orderAction(id, action, reason); if (msg) toast(msg); } catch (e) { toast('อัปเดตไม่ได้: ' + e.message); }
 }
 
 // ---------- add / edit sheet ----------
@@ -1575,25 +1576,25 @@ document.addEventListener('click', async e => {
     case 'line-save': {
       const v = k => $(`[data-line="${k}"]`)?.value ?? '';
       if (!v('from') || !v('to') || v('from') >= v('to')) return toast('เวลาเปิดต้องก่อนเวลาปิด');
-      saveLine({ from: v('from'), to: v('to'), prep: Math.max(0, Number(v('prep')) || 0), stampGoal: Math.max(1, Number(v('stampGoal')) || 10), note: v('note').trim() });
+      saveLine({ from: v('from'), to: v('to'), prep: Math.max(0, Number(v('prep')) || 0), stampGoal: Math.max(1, Number(v('stampGoal')) || 10), note: v('note').trim(), name: v('name').trim() });
       return toast('บันทึกการตั้งค่า LINE แล้ว');
     }
-    case 'ord-status': return orderUpdate(el.dataset.id, { status: el.dataset.s }, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
+    case 'ord-status': return orderAction(el.dataset.id, el.dataset.s, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
     case 'ord-paid': {
       const o = orderById(el.dataset.id);
       if (!o || !confirm(`เช็กแล้วว่าเงิน ${baht(o.total)} ของ ${o.no} เข้าบัญชีร้าน?`)) return;
-      return orderUpdate(o.id, { paid: true, paidAt: Date.now() }, `${o.no} ชำระแล้ว ✅`);
+      return orderAction(o.id, 'paid', `${o.no} ชำระแล้ว ✅`);
     }
     case 'ord-cash': {
       const o = orderById(el.dataset.id); if (!o) return;
-      return orderUpdate(o.id, { payMethod: 'cash', paid: true, paidAt: Date.now(), status: 'done' }, `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
+      return orderAction(o.id, 'cash', `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
     }
-    case 'ord-done': return orderUpdate(el.dataset.id, { status: 'done' }, 'ส่งมอบแล้ว · บันทึกยอดขายแล้ว 🥤');
+    case 'ord-done': return orderAction(el.dataset.id, 'done', 'ส่งมอบแล้ว · บันทึกยอดขายแล้ว 🥤');
     case 'ord-cancel': {
       const o = orderById(el.dataset.id); if (!o) return;
       const reason = prompt(`ยกเลิก ${o.no}? ใส่เหตุผลถึงลูกค้า (เช่น วัตถุดิบหมด)`, '');
       if (reason === null) return;
-      return orderUpdate(o.id, { status: 'cancelled', cancelledBy: 'shop', cancelReason: reason.trim().slice(0, 120) }, `ยกเลิก ${o.no} แล้ว`);
+      return orderAction(o.id, 'cancel', `ยกเลิก ${o.no} แล้ว`, reason.trim().slice(0, 120));
     }
     case 'pp-save': {
       const v = $('[data-input="ppid"]').value.trim();

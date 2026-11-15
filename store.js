@@ -1,5 +1,5 @@
 // Data layer: works locally (localStorage) and switches to Firebase Firestore for multi-device sync.
-import { firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
+import { lineApi as LINE_API, firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
 export const inviteOnly = !!INVITE_ONLY && !PRIVATE_APP;
 export const privateApp = !!PRIVATE_APP;
 
@@ -302,10 +302,19 @@ export function deleteTx(id) {
   else { state.tx = state.tx.filter(t => t.id !== id); writeLocal(); }
 }
 
-// LINE OA order: the shop moves it along (accepted → ready → done); Cloud Functions message the customer and record the sale
-export async function updateOrder(id, patch) {
-  if (state.mode !== 'cloud') throw new Error('ต้องล็อกอินก่อน');
-  await fb.F.updateDoc(fb.F.doc(...userPath('orders', id)), clean({ ...patch, updatedAt: Date.now() }));
+// LINE OA order: the shop moves it along through the Worker (it checks the owner's sign-in, messages the customer
+// and records the sale). action: accept | ready | paid | cash | done | cancel
+export async function orderAction(id, action, reason = '') {
+  if (state.mode !== 'cloud' || !fb?.auth.currentUser) throw new Error('ต้องล็อกอินก่อน');
+  if (!LINE_API) throw new Error('ยังไม่ได้ตั้ง lineApi ใน firebase-config.js');
+  const res = await fetch(`${LINE_API.replace(/\/$/, '')}/shop/orders/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await fb.auth.currentUser.getIdToken()}` },
+    body: JSON.stringify({ action, reason }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `ระบบ LINE ตอบกลับ ${res.status}`);
+  return data;
 }
 
 export function saveSettings(patch) {

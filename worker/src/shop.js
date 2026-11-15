@@ -89,3 +89,26 @@ export function publicOrder(id, o, shop = {}) {
 }
 
 export const STATUS_TEXT = { new: 'รอร้านรับออเดอร์', accepted: 'กำลังทำ', ready: 'พร้อมรับแล้ว', done: 'รับแล้ว', cancelled: 'ยกเลิกแล้ว' };
+
+// ---- shop (POS) actions on an order → the fields to change ----
+export function shopAction(o, action, reason = '', now = Date.now()) {
+  const open = OPEN_STATUSES.includes(o.status);
+  const bad = msg => { throw new OrderError(msg, 409); };
+  switch (action) {
+    case 'accept': if (o.status !== 'new') bad('ออเดอร์นี้รับไปแล้ว'); return { status: 'accepted' };
+    case 'ready': if (!['new', 'accepted'].includes(o.status)) bad('สถานะเปลี่ยนไปแล้ว'); return { status: 'ready', readyAt: now };
+    case 'paid': if (o.paid) bad('ชำระแล้ว'); if (!open) bad('ออเดอร์ปิดไปแล้ว'); return { paid: true, paidAt: now };
+    case 'cash': if (!open) bad('ออเดอร์ปิดไปแล้ว'); return { payMethod: 'cash', paid: true, paidAt: now, status: 'done' };
+    case 'done': if (!open) bad('ออเดอร์ปิดไปแล้ว'); if (!o.paid) bad('ยังไม่ได้รับเงิน'); return { status: 'done' };
+    case 'cancel': if (!open) bad('ออเดอร์ปิดไปแล้ว'); return { status: 'cancelled', cancelledBy: 'shop', cancelReason: String(reason || '').slice(0, 120) };
+    default: throw new OrderError('คำสั่งไม่ถูกต้อง');
+  }
+}
+
+// a finished, paid order as a POS bill (same shape as confirmSale in app.js, so reports / close / Sheet count it)
+export function saleFromOrder(id, o, hm, now = Date.now()) {
+  return { id: `line-${id}`, type: 'income', cat: 'sales', method: o.payMethod === 'promptpay' ? 'promptpay' : 'cash', amount: o.total,
+    date: o.day, time: hm, source: 'pos', channel: 'line', cups: o.cups, orderId: id, orderNo: o.no,
+    merchant: `${o.no} ${o.items.map(i => `${i.name}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')}`,
+    items: o.items, createdAt: now, updatedAt: now };
+}

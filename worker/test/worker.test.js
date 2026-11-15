@@ -1,0 +1,229 @@
+// End-to-end test of the Worker against an in-memory Firestore + fake LINE / Google endpoints.
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { createApp } from '../src/index.js';
+import { encode, fromFields } from '../src/firestore.js';
+import { b64url, resetGoogleToken, resetFirebaseKeys } from '../src/auth.js';
+import { validSignature } from '../src/line.js';
+
+const enc = new TextEncoder();
+const RS = { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' };
+const toPem = der => `-----BEGIN PRIVATE KEY-----\n${Buffer.from(der).toString('base64')}\n-----END PRIVATE KEY-----\n`;
+const saKeys = await crypto.subtle.generateKey(RS, true, ['sign', 'verify']);
+const fbKeys = await crypto.subtle.generateKey(RS, true, ['sign', 'verify']);
+const fbJwk = { ...(await crypto.subtle.exportKey('jwk', fbKeys.publicKey)), kid: 'k1', alg: 'RS256', use: 'sig' };
+const SA = { client_email: 'sa@test.iam.gserviceaccount.com', project_id: 'proj', private_key: toPem(await crypto.subtle.exportKey('pkcs8', saKeys.privateKey)) };
+
+async function firebaseToken(claims) {
+  const now = Math.floor(Date.now() / 1000);
+  const full = { aud: 'proj', iss: 'https://securetoken.google.com/proj', iat: now, exp: now + 3600, auth_time: now, sub: 'u1', email_verified: true, ...claims };
+  const data = `${b64url(enc.encode(JSON.stringify({ alg: 'RS256', kid: 'k1' })))}.${b64url(enc.encode(JSON.stringify(full)))}`;
+  return `${data}.${b64url(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', fbKeys.privateKey, enc.encode(data)))}`;
+}
+
+// ---------- fake services ----------
+let docs, pushes, replies, clock;
+const ROOT = 'projects/proj/databases/(default)/documents/';
+const reply = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
+const fsErr = (status, code) => reply({ error: { status, code } }, code);
+const toDoc = (path, d) => ({ name: ROOT + path, fields: Object.fromEntries(Object.entries(d.data).map(([k, v]) => [k, encode(v)])), updateTime: d.updateTime });
+
+async function fakeFetch(url, opts = {}) {
+  url = String(url);
+  const body = opts.body;
+  if (url === 'https://oauth2.googleapis.com/token') {
+    const assertion = new URLSearchParams(body).get('assertion');
+    const [h, p, s] = assertion.split('.');
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', saKeys.publicKey, Buffer.from(s, 'base64url'), enc.encode(`${h}.${p}`));
+    return ok ? reply({ access_token: 'gtok', expires_in: 3600 }) : reply({}, 400);
+  }
+  if (url.includes('securetoken@system')) return reply({ keys: [fbJwk] });
+  if (url === 'https://api.line.me/oauth2/v3/token') return reply({ access_token: 'ltok', expires_in: 900 });
+  if (url === 'https://api.line.me/oauth2/v2.1/verify') {
+    const t = new URLSearchParams(body).get('id_token');
+    return t?.startsWith('cust-') ? reply({ sub: 'U' + t.slice(5), name: 'ลูกค้า ' + t.slice(5) }) : reply({ error: 'invalid' }, 400);
+  }
+  if (url.startsWith('https://api.line.me/v2/bot/message/')) {
+    assert.equal(opts.headers.Authorization, 'Bearer ltok');
+    (url.endsWith('push') ? pushes : replies).push(JSON.parse(body));
+    return reply({});
+  }
+  if (url.startsWith('https://firestore.googleapis.com/v1/')) {
+    assert.equal(opts.headers.Authorization, 'Bearer gtok');
+    const path = url.slice(('https://firestore.googleapis.com/v1/' + ROOT).length);
+    if (url.endsWith(':commit')) return commit(JSON.parse(body).writes);
+    if (url.endsWith(':runQuery')) {
+      const parent = path.slice(0, -':runQuery'.length);
+      const q = JSON.parse(body).structuredQuery;
+      const filters = q.where.compositeFilter ? q.where.compositeFilter.filters : [q.where];
+      const prefix = `${parent}/${q.from[0].collectionId}/`;
+      const rows = Object.entries(docs).filter(([p, d]) => p.startsWith(prefix) && !p.slice(prefix.length).includes('/')
+        && filters.every(f => JSON.stringify(encode(d.data[f.fieldFilter.field.fieldPath])) === JSON.stringify(f.fieldFilter.value)));
+      return reply(rows.length ? rows.map(([p, d]) => ({ document: toDoc(p, d) })) : [{ readTime: 'x' }]);
+    }
+    const d = docs[path];
+    return d ? reply(toDoc(path, d)) : fsErr('NOT_FOUND', 404);
+  }
+  throw new Error('unexpected fetch ' + url);
+}
+
+function commit(writes) {
+  const next = structuredClone(docs), results = [];
+  for (const w of writes) {
+    const name = (w.update?.name || w.transform?.document).slice(ROOT.length);
+    const cur = next[name];
+    const pre = w.currentDocument;
+    if (pre?.exists === false && cur) return fsErr('ALREADY_EXISTS', 409);
+    if (pre?.exists === true && !cur) return fsErr('NOT_FOUND', 404);
+    if (pre?.updateTime && cur?.updateTime !== pre.updateTime) return fsErr('FAILED_PRECONDITION', 400);
+    const t = String(++clock);
+    let data = cur ? { ...cur.data } : {};
+    if (w.update) {
+      const fields = fromFields(w.update.fields);
+      if (w.updateMask) for (const k of w.updateMask.fieldPaths) data[k] = fields[k]; else data = fields;
+    }
+    const transformResults = [];
+    for (const tr of w.updateTransforms || w.transform?.fieldTransforms || []) {
+      data[tr.fieldPath] = (Number(data[tr.fieldPath]) || 0) + Number(tr.increment.integerValue ?? tr.increment.doubleValue);
+      transformResults.push(encode(data[tr.fieldPath]));
+    }
+    next[name] = { data, updateTime: t };
+    results.push({ updateTime: t, transformResults });
+  }
+  docs = next;
+  return reply({ writeResults: results });
+}
+
+// ---------- fixtures ----------
+const SHOP = 'users/shop1';
+const menu = [
+  { id: 'm_thaitea', name: 'ชาไทย', emoji: '🧋', prices: { blend: 35, iced: 30, hot: 25 }, price: 35, cost: 12, group: 'drink' },
+  { id: 't_pearl', name: 'ไข่มุก', price: 10, cost: 3, group: 'topping' }];
+const env = { FIREBASE_SERVICE_ACCOUNT: JSON.stringify(SA), FIREBASE_PROJECT_ID: 'proj', SHOP_UID: 'shop1', OWNER_EMAIL: 'Owner@Shop.com',
+  LINE_CHANNEL_ID: '1', LINE_CHANNEL_SECRET: 'sec', LINE_LOGIN_CHANNEL_ID: '2', LIFF_ID: 'liff-1', ALLOWED_ORIGINS: 'https://tunsupakorn.github.io' };
+let app;
+const call = async (method, path, { token, body, headers = {} } = {}) => {
+  const res = await app(new Request('https://w.test' + path, { method, body: body ? JSON.stringify(body) : undefined,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers } }));
+  return { status: res.status, data: await res.json().catch(() => null), headers: res.headers };
+};
+
+beforeEach(() => {
+  clock = 0; pushes = []; replies = [];
+  // always open: hours cover the whole day so the test does not depend on the clock
+  docs = { [SHOP]: { data: { settings: { menu, promptpay: '0812345678', line: { open: true, from: '00:00', to: '23:59', prep: 0 } } }, updateTime: '0' } };
+  resetGoogleToken(); resetFirebaseKeys();
+  app = createApp(env, fakeFetch);
+});
+
+test('menu is public, hides cost, sends CORS for the shop site', async () => {
+  const r = await call('GET', '/menu', { headers: { Origin: 'https://tunsupakorn.github.io' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.menu.length, 2);
+  assert.ok(!JSON.stringify(r.data).includes('cost'));
+  assert.equal(r.data.shop.promptpay, true);
+  assert.equal(r.headers.get('access-control-allow-origin'), 'https://tunsupakorn.github.io');
+  const other = await call('GET', '/menu', { headers: { Origin: 'https://evil.example' } });
+  assert.equal(other.headers.get('access-control-allow-origin'), null);
+});
+
+test('customer orders need a valid LINE token', async () => {
+  assert.equal((await call('POST', '/orders', { body: {} })).status, 401);
+  assert.equal((await call('POST', '/orders', { token: 'forged', body: {} })).status, 401);
+});
+
+test('full flow: order → accept → ready (push) → cash → sale + stamps', async () => {
+  const placed = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', style: 'iced', qty: 2, price: 1 }, { id: 't_pearl', qty: 1 }], pickup: { mode: 'asap' }, payMethod: 'cash' } });
+  assert.equal(placed.status, 201);
+  assert.equal(placed.data.no, 'L001');
+  assert.equal(placed.data.total, 70);
+  assert.equal(placed.data.items[0].cost, undefined);
+  const id = placed.data.id;
+  const stored = docs[`${SHOP}/orders/${id}`].data;
+  assert.equal(stored.lineUserId, 'UA');
+  assert.equal(stored.items[0].cost, 12);
+
+  const second = await call('POST', '/orders', { token: 'cust-B', body: { items: [{ id: 'm_thaitea', style: 'hot', qty: 1 }], payMethod: 'cash' } });
+  assert.equal(second.data.no, 'L002');
+
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: await firebaseToken({ email: 'other@x.com' }), body: { action: 'accept' } })).status, 403);
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: await firebaseToken({ email: 'owner@shop.com', email_verified: false }), body: { action: 'accept' } })).status, 403);
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: await firebaseToken({ email: 'owner@shop.com', aud: 'other' }), body: { action: 'accept' } })).status, 403);
+
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'accept' } })).data.status, 'accepted');
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'done' } })).status, 409); // not paid yet
+  await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'ready' } });
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].to, 'UA');
+  assert.match(pushes[0].messages[0].text, /L001 พร้อมรับแล้ว/);
+
+  const done = await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'cash' } });
+  assert.deepEqual(done.data, { ok: true, status: 'done', paid: true });
+  const tx = docs[`${SHOP}/tx/line-${id}`].data;
+  assert.equal(tx.source, 'pos'); assert.equal(tx.channel, 'line'); assert.equal(tx.amount, 70); assert.equal(tx.method, 'cash');
+  assert.equal(docs[`${SHOP}/orders/${id}`].data.txId, `line-${id}`);
+  assert.deepEqual([docs[`${SHOP}/customers/UA`].data.stamps, docs[`${SHOP}/customers/UA`].data.orders], [2, 1]);
+  // a closed order cannot be finished twice (no second sale)
+  assert.equal((await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'done' } })).status, 409);
+  assert.equal(Object.keys(docs).filter(k => k.includes('/tx/')).length, 1);
+});
+
+test('promptpay: customer claims, shop confirms, hand over', async () => {
+  const placed = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], pickup: { mode: 'later', at: '23:50' }, payMethod: 'promptpay' } });
+  assert.equal(placed.data.promptpay, '0812345678');
+  assert.deepEqual(placed.data.pickup, { mode: 'later', at: '23:50' });
+  const id = placed.data.id;
+  assert.equal((await call('GET', `/orders/${id}`, { token: 'cust-B' })).status, 404); // someone else's order
+  assert.equal((await call('POST', `/orders/${id}/claim`, { token: 'cust-A' })).status, 200);
+  assert.equal((await call('POST', `/orders/${id}/cancel`, { token: 'cust-A' })).status, 409); // already claimed a transfer
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'paid' } });
+  const mine = await call('GET', `/orders/${id}`, { token: 'cust-A' });
+  assert.equal(mine.data.paid, true);
+  assert.equal(mine.data.promptpay, undefined);
+  await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'done' } });
+  assert.equal(docs[`${SHOP}/tx/line-${id}`].data.method, 'promptpay');
+});
+
+test('limits: two open orders per customer; customer cancel; shop cancel pushes', async () => {
+  const body = { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' };
+  const a = await call('POST', '/orders', { token: 'cust-A', body });
+  await call('POST', '/orders', { token: 'cust-A', body });
+  assert.equal((await call('POST', '/orders', { token: 'cust-A', body })).status, 429);
+  assert.equal((await call('POST', `/orders/${a.data.id}/cancel`, { token: 'cust-A' })).status, 200);
+  const c = await call('POST', '/orders', { token: 'cust-A', body });
+  assert.equal(c.status, 201);
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  await call('POST', `/shop/orders/${c.data.id}`, { token: owner, body: { action: 'cancel', reason: 'นมหมด' } });
+  assert.match(pushes[0].messages[0].text, /เหตุผล: นมหมด/);
+  const list = await call('GET', '/orders', { token: 'cust-A' });
+  assert.equal(list.data.length, 3);
+});
+
+test('closed shop refuses orders', async () => {
+  docs[SHOP].data.settings.line.open = false;
+  const r = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
+  assert.equal(r.status, 409);
+});
+
+test('webhook: signature required; keyword replies are free replies', async () => {
+  const placed = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
+  const raw = JSON.stringify({ events: [
+    { type: 'message', replyToken: 'r1', source: { userId: 'UA' }, message: { type: 'text', text: `🧾 ออเดอร์ ${placed.data.no}` } },
+    { type: 'message', replyToken: 'r2', source: { userId: 'UA' }, message: { type: 'text', text: 'แต้ม' } },
+    { type: 'follow', replyToken: 'r3', source: { userId: 'UB' } }] });
+  const bad = await app(new Request('https://w.test/webhook', { method: 'POST', body: raw, headers: { 'x-line-signature': 'nope' } }));
+  assert.equal(bad.status, 401);
+  const key = await crypto.subtle.importKey('raw', enc.encode('sec'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Buffer.from(await crypto.subtle.sign('HMAC', key, enc.encode(raw))).toString('base64');
+  assert.equal(await validSignature(raw, sig, 'sec'), true);
+  const ok = await app(new Request('https://w.test/webhook', { method: 'POST', body: raw, headers: { 'x-line-signature': sig } }));
+  assert.equal(ok.status, 200);
+  assert.equal(replies.length, 3);
+  const byToken = Object.fromEntries(replies.map(r => [r.replyToken, r.messages[0]]));
+  assert.equal(byToken.r1.type, 'flex');
+  assert.match(byToken.r2.text, /0\/10/);
+  assert.match(byToken.r3.template.actions[0].uri, /liff\.line\.me\/liff-1/);
+  assert.equal(pushes.length, 0);
+});

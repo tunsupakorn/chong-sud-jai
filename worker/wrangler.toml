@@ -1,0 +1,19 @@
+# Cloudflare Worker (แผนฟรี) สำหรับ LINE OA ของร้าน
+name = "jukjik-kaa-line"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "jukjik-kaa-4fae"
+SHOP_UID = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1"
+OWNER_EMAIL = "weekendchill69@gmail.com"
+LINE_CHANNEL_ID = "2012622452"
+LINE_LOGIN_CHANNEL_ID = "2012622553"
+LIFF_ID = ""
+ALLOWED_ORIGINS = "https://tunsupakorn.github.io"
+SHOP_NAME = "จุกจิกการค้า"
+
+# ค่าลับ (ใส่ใน Cloudflare dashboard › Worker › Settings › Variables and Secrets หรือ `wrangler secret put`):
+#   LINE_CHANNEL_SECRET        Channel secret ของ Messaging API channel
+#   FIREBASE_SERVICE_ACCOUNT   ไฟล์ JSON ของ service account (Firebase › Project settings › Service accounts)
