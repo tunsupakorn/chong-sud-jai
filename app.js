@@ -432,8 +432,8 @@ function viewGate() {
 }
 
 // ---------- owner: who may use the app ----------
-const APP_URL = 'https://tunsupakorn.github.io/jukjik/';
-const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1IT8M4VotXmahde_1bo0Shdfwyem8lhZWQuTZL5uCnH8/copy';
+const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
+const TEMPLATE_URL = ''; // ชีตต้นแบบของร้าน: เพิ่มในเฟสถัดไป
 function inviteText(name) {
   return `${name ? `สวัสดี ${name} ` : ''}ชวนมาใช้ "จุกจิก" แอปจดรายรับรายจ่าย อ่านสลิปให้อัตโนมัติ 🐣
 1) เปิด ${APP_URL} แล้วติดตั้งลงหน้าจอ (วิธีติดตั้ง: ${APP_URL}guide.html#sec-install)
@@ -512,7 +512,7 @@ function sheetCard() {
       <p class="muted small">เก็บสำเนาทุกรายการไว้ใน Google Sheet และรูปสลิปไว้ใน Google Drive ของคุณเอง</p>
       ${state.mode !== 'cloud' ? '<p class="small">🔐 ล็อกอินบัญชีก่อน แล้วค่อยเชื่อมชีต</p>' : ''}
       <ol class="steps">
-        <li><a class="btn primary sm" href="${TEMPLATE_URL}" target="_blank" rel="noopener">① 📗 สร้างชีตของฉัน (กด “ทำสำเนา”) ↗</a></li>
+        ${TEMPLATE_URL ? `<li><a class="btn primary sm" href="${TEMPLATE_URL}" target="_blank" rel="noopener">① 📗 สร้างชีตของฉัน (กด “ทำสำเนา”) ↗</a></li>` : `<li><span class="small">📗 ชีตต้นแบบของร้านจะเปิดให้ใช้ในเฟสถัดไป ตอนนี้ใช้ <b>💾 ส่งออก CSV</b> เปิดใน Excel/Sheets ได้</span></li>`}
         <li><span class="small">② <b>บนคอมพิวเตอร์</b> เปิดชีตที่สร้าง › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> แล้วกดปุ่ม
           <b>“เปิดแอปและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ! ไม่ต้องคัดลอกลิงก์</span></li>
       </ol>

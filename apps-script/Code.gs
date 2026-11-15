@@ -8,7 +8,7 @@
  * หลังจากนั้นทุกคำขอต้องมีรหัสเดียวกัน — ถ้าต้องการจับคู่ใหม่ ให้รัน resetPairing()
  */
 
-const APP_URL = 'https://tunsupakorn.github.io/jukjik/';
+const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
 const SHEET_TX = 'รายการ';
 const SHEET_MONTH = 'สรุปรายเดือน';
 const SHEET_CAT = 'แยกหมวด';
