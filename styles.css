@@ -413,3 +413,18 @@ details.more-settings section + section { margin-top: 14px; }
 .drawer { border: 1px dashed var(--line, #d5d9ec); border-radius: 14px; padding: 10px 12px; display: grid; gap: 8px; }
 .drawer h3 { margin: 0; }
 .drawer .row.gap > .lbl { min-width: 0; }
+
+/* ---- sell page: undo tap + drink styles ---- */
+.menu-cell { position: relative; display: grid; }
+.m-minus { position: absolute; top: 6px; left: 6px; width: 30px; height: 30px; border-radius: 15px; border: 1.5px solid var(--line); background: var(--surface);
+  color: var(--expense); font-size: 1.25rem; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.m-minus:active { transform: scale(.9); }
+.m-note { font-size: .78rem; color: var(--accent); font-weight: 600; text-align: center; }
+.top-wrap { display: inline-flex; gap: 4px; }
+.top-minus { border: 1.5px solid var(--line); cursor: pointer; font: inherit; color: var(--expense); padding: 8px 12px; font-weight: 700; }
+.style-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; }
+.style-btn { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 8px; border-radius: 18px;
+  border: 2px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 1.05rem; cursor: pointer; }
+.style-btn:active { transform: scale(.95); border-color: var(--accent); }
+.style-btn b { font-family: var(--display); font-weight: 500; color: var(--accent); }
+.style-prices .lbl { min-width: 0; }
