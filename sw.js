@@ -1,8 +1,8 @@
 // JukJik service worker: network-first for the app's own files, cache as offline fallback,
 // plus the Android share target ("Share → จุกจิก") for slip images and PDFs.
-const CACHE = 'kaa-v3';
+const CACHE = 'kaa-v4';
 const SHARE = 'kaa-share';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'store.js', 'gemini.js', 'charts.js', 'sheets.js', 'qr.js', 'guide.html',
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'store.js', 'gemini.js', 'charts.js', 'sheets.js', 'qr.js', 'promptpay.js', 'guide.html',
   'firebase-config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

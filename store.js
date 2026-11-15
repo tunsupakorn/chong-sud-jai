@@ -216,7 +216,7 @@ function attachUser(user) {
     const s = snap.exists() ? snap.data().settings : null;
     state.settings = { ...defaultSettings(), catVersion: s?.categories ? 1 : CAT_VERSION, ...(s || {}) };
     if (s && migrateSettings(state.settings) && !snap.metadata.fromCache)
-      F.setDoc(F.doc(db, 'users', user.uid), { settings: clean(state.settings) }, { merge: true }).catch(syncFail);
+      F.setDoc(F.doc(db, 'users', user.uid), { settings: clean(state.settings) }, { mergeFields: ['settings'] }).catch(syncFail);
     emit();
   }, err => { if (!denied(err)) console.warn(err); }));
 }
@@ -276,7 +276,7 @@ export function deleteTx(id) {
 
 export function saveSettings(patch) {
   state.settings = { ...state.settings, ...patch };
-  if (state.mode === 'cloud') fb.F.setDoc(fb.F.doc(...userPath()), { settings: clean(state.settings) }, { merge: true }).catch(syncFail);
+  if (state.mode === 'cloud') fb.F.setDoc(fb.F.doc(...userPath()), { settings: clean(state.settings) }, { mergeFields: ['settings'] }).catch(syncFail);
   else LS.set('jj_settings', state.settings);
   emit();
 }

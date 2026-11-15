@@ -3,6 +3,7 @@ import { readFile, testKey, DEFAULT_MODEL, setModelChangeHandler, setFallbackHan
 import { categoryBars, dailyColumns, bindColumnTips } from './charts.js';
 import * as Sheet from './sheets.js';
 import { readSlipQR } from './qr.js';
+import * as PP from './promptpay.js';
 
 const { state, prefs } = S;
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -132,7 +133,8 @@ function viewHome() {
   const today = todayISO();
   const todayTx = state.tx.filter(t => t.date === today);
   const t = money(todayTx);
-  const closed = todayTx.some(x => x.source === 'close');
+  const drawer = (state.settings.drawers || {})[today];
+  const closed = todayTx.some(x => x.source === 'close') || !!drawer;
   const byCh = Object.fromEntries(CHANNELS.map(([k]) => [k, todayTx.filter(x => x.type === 'income' && x.method === k).reduce((s, x) => s + amt(x), 0)]));
   const q = ui.search.trim().toLowerCase();
   const shown = list.filter(x => !q || [catById(x.cat).name, x.merchant, x.note, String(x.amount)].join(' ').toLowerCase().includes(q))
@@ -155,7 +157,7 @@ function viewHome() {
     </section>
     ${banner}
     <section class="card today">
-      <div class="row between"><h3>วันนี้ · ${shortDay(today)}</h3>${closed ? '<span class="ok-pill">✅ ปิดยอดแล้ว</span>' : ''}</div>
+      <div class="row between"><h3>วันนี้ · ${shortDay(today)}</h3>${closed ? `<span class="ok-pill">✅ ปิดยอดแล้ว${drawer?.diff ? (drawer.diff < 0 ? ` · ขาด ${baht(-drawer.diff)}` : ` · เกิน ${baht(drawer.diff)}`) : ''}</span>` : ''}</div>
       <div class="today-grid">${CHANNELS.map(([k, l]) => `<div><small>${l}</small><b class="num">${baht(byCh[k])}</b></div>`).join('')}</div>
       <p class="small muted today-foot">ยอดขายวันนี้ <b class="num">${baht(t.sales)}</b>${t.cups ? ` · ${t.cups} แก้ว` : ''} · จ่ายวันนี้ <b class="num">${baht(t.cogs + t.opex + t.invest)}</b></p>
       <button class="btn primary big" data-action="close-open" data-date="${today}">📒 ${closed ? 'แก้ไขยอดปิดวันนี้' : 'ปิดยอดวันนี้'}</button>
@@ -341,6 +343,8 @@ function viewSettings() {
     <section class="card"><h3>🔄 บัญชีและการซิงก์</h3>${account}</section>
 
     ${menuCard()}
+
+    ${promptpayCard()}
 
     ${geminiCard()}
 
@@ -610,49 +614,83 @@ function moveCategory(id, dir) {
   renderCatEditor();
 }
 
-// ---------- daily close (ปิดยอดขาย) ----------
-// One sales entry per channel per day, with fixed ids, so closing the same day again replaces it.
+// ---------- daily close (ปิดยอดขาย + นับเงินลิ้นชัก) ----------
+// Manual sales: one entry per channel per day with fixed ids (closing again replaces them).
+// Sell-page bills are counted automatically; the drawer count is kept in settings.drawers[date].
 let closeDraft = null;
 const closeId = (date, ch) => `close-${date}-${ch}`;
+const posOn = date => {
+  const list = state.tx.filter(t => t.source === 'pos' && t.date === date);
+  const by = Object.fromEntries(CHANNELS.map(([k]) => [k, list.filter(t => t.method === k).reduce((s, t) => s + amt(t), 0)]));
+  return { n: list.length, by, total: list.reduce((s, t) => s + amt(t), 0) };
+};
 function loadCloseDraft(date) {
   const get = k => state.tx.find(t => t.id === closeId(date, k));
   const cups = CHANNELS.reduce((s, [k]) => s + Number(get(k)?.cups || 0), 0);
   const first = CHANNELS.map(([k]) => get(k)).find(Boolean);
+  const dr = (state.settings.drawers || {})[date];
   closeDraft = { date, cash: get('cash')?.amount ?? '', promptpay: get('promptpay')?.amount ?? '', scan: get('scan')?.amount ?? '',
-    cups: cups || '', note: first?.note && first.note !== 'ปิดยอดขาย' ? first.note : '', existed: !!first };
+    cups: cups || '', note: first?.note && first.note !== 'ปิดยอดขาย' ? first.note : '', existed: !!first || !!dr,
+    float: dr?.float ?? (state.settings.floatDefault ?? ''), counted: dr?.counted ?? '' };
 }
 function openCloseSheet(date) {
   loadCloseDraft(date || todayISO());
   renderCloseSheet();
   if (!$('#sheet').open) $('#sheet').showModal();
 }
-const closeTotal = () => CHANNELS.reduce((s, [k]) => s + (Number(closeDraft[k]) || 0), 0);
+const closeManual = () => CHANNELS.reduce((s, [k]) => s + (Number(closeDraft[k]) || 0), 0);
+const closeTotal = () => closeManual() + posOn(closeDraft.date).total;
+function drawerCalc() {
+  const d = closeDraft, pos = posOn(d.date);
+  const expected = (Number(d.float) || 0) + pos.by.cash + (Number(d.cash) || 0);
+  const counted = d.counted === '' ? null : Number(d.counted) || 0;
+  return { expected, counted, diff: counted === null ? null : Math.round((counted - expected) * 100) / 100 };
+}
+const diffText = c => c.diff === null ? 'ใส่ยอดที่นับได้ เพื่อดูว่าเงินขาด/เกิน'
+  : c.diff === 0 ? '✅ เงินตรงพอดี' : c.diff > 0 ? `⬆️ เงินเกิน ${baht(c.diff)}` : `⚠️ เงินขาด ${baht(-c.diff)}`;
+function updateCloseLive() {
+  const t = $('#close-total'); if (t) t.textContent = baht(closeTotal());
+  const c = drawerCalc();
+  const e = $('#drawer-exp'); if (e) e.textContent = baht(c.expected);
+  const dd = $('#drawer-diff'); if (dd) { dd.textContent = diffText(c); dd.className = 'change' + (c.diff < 0 ? ' short' : ''); }
+}
 function renderCloseSheet() {
   const d = closeDraft;
-  const slipSales = state.tx.filter(t => t.date === d.date && t.type === 'income' && t.source !== 'close' && t.cat !== 'inc_other')
-    .reduce((s, t) => s + amt(t), 0);
+  const pos = posOn(d.date);
+  const c = drawerCalc();
+  const manualOpen = !pos.n || closeManual() > 0;
   $('#sheet').innerHTML = `<form method="dialog" class="sheet-body" data-form="close">
     <div class="grab" aria-hidden="true"></div>
     <div class="row between"><h2>📒 ปิดยอดขาย</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
     <label class="lbl">วันที่<input type="date" value="${d.date}" data-cl="date" required></label>
-    ${CHANNELS.map(([k, l]) => `<label class="close-row"><span>${l}</span>
-      <input type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="${d[k]}" data-cl="${k}" aria-label="${l}"></label>`).join('')}
+    ${pos.n ? `<div class="pos-sum"><b>🛒 จากหน้าขาย ${pos.n} บิล</b>
+      <div class="today-grid">${CHANNELS.map(([k, l]) => `<div><small>${l}</small><b class="num">${baht(pos.by[k])}</b></div>`).join('')}</div></div>` : ''}
+    <details class="more" ${manualOpen ? 'open' : ''}><summary>${pos.n ? '➕ ยอดขายที่ไม่ได้ผ่านหน้าขาย' : 'ยอดขายวันนี้'}</summary>
+      ${CHANNELS.map(([k, l]) => `<label class="close-row"><span>${l}</span>
+        <input type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="${d[k]}" data-cl="${k}" aria-label="${l}"></label>`).join('')}
+      ${pos.n ? '' : `<label class="lbl">จำนวนแก้ว (ไม่บังคับ)<input type="number" inputmode="numeric" min="0" step="1" placeholder="เช่น 85" value="${d.cups}" data-cl="cups"></label>`}
+    </details>
     <div class="close-total"><span>รวมยอดขาย</span><b class="num" id="close-total">${baht(closeTotal())}</b></div>
+    <section class="drawer"><h3>💵 นับเงินลิ้นชัก</h3>
+      <div class="row gap">
+        <label class="lbl grow">เงินทอนตั้งต้น (ตอนเปิดร้าน)<input type="number" inputmode="decimal" min="0" step="1" placeholder="เช่น 500" value="${d.float}" data-cl="float"></label>
+        <label class="lbl grow">นับได้ตอนปิด<input type="number" inputmode="decimal" min="0" step="1" placeholder="นับเงินสดทั้งหมด" value="${d.counted}" data-cl="counted"></label>
+      </div>
+      <p class="small muted">ควรมีในลิ้นชัก = เงินทอนตั้งต้น + ขายเงินสด = <b class="num" id="drawer-exp">${baht(c.expected)}</b></p>
+      <div class="change ${c.diff < 0 ? 'short' : ''}" id="drawer-diff">${diffText(c)}</div>
+    </section>
+    <label class="lbl">โน้ต<input type="text" placeholder="เช่น ฝนตก ขายน้อย" value="${esc(d.note)}" data-cl="note"></label>
     <div class="row gap">
-      <label class="lbl grow">จำนวนแก้ว (ไม่บังคับ)<input type="number" inputmode="numeric" min="0" step="1" placeholder="เช่น 85" value="${d.cups}" data-cl="cups"></label>
-      <label class="lbl grow">โน้ต<input type="text" placeholder="เช่น ฝนตก ขายน้อย" value="${esc(d.note)}" data-cl="note"></label>
-    </div>
-    ${slipSales ? `<p class="small muted">⚠️ วันนี้มียอดขายจากหน้าขาย/สลิปบันทึกไว้แล้ว ${baht(slipSales)} ถ้าเป็นยอดเดียวกับข้างบน ให้กรอกเฉพาะส่วนที่เหลือ กันนับซ้ำ</p>` : ''}
-    <div class="row gap">
-      ${d.existed ? `<button type="button" class="btn danger" data-action="close-delete">ลบยอดวันนี้</button>` : ''}
-      <button type="submit" class="btn primary big grow">บันทึกยอดปิดวัน</button>
+      ${d.existed ? `<button type="button" class="btn danger" data-action="close-delete">ลบยอดปิดวันนี้</button>` : ''}
+      <button type="submit" class="btn primary big grow">บันทึกปิดยอด</button>
     </div>
   </form>`;
 }
 function saveClose() {
   const d = closeDraft;
+  const pos = posOn(d.date);
   const firstPaid = CHANNELS.map(([k]) => k).find(k => Number(d[k]) > 0);
-  if (!firstPaid) return toast('ใส่ยอดขายอย่างน้อย 1 ช่อง');
+  if (!firstPaid && !pos.n && d.counted === '') return toast('ใส่ยอดขายอย่างน้อย 1 ช่อง');
   for (const [k, label] of CHANNELS) {
     const id = closeId(d.date, k);
     const v = Math.round((Number(d[k]) || 0) * 100) / 100;
@@ -662,9 +700,33 @@ function saveClose() {
         merchant: `ปิดยอดขาย · ${label.replace(/^\S+\s/, '')}`, note: d.note || 'ปิดยอดขาย', cups: k === firstPaid ? Number(d.cups) || 0 : 0 });
     } else if (state.tx.some(t => t.id === id)) S.deleteTx(id);
   }
+  const c = drawerCalc();
+  const drawers = { ...(state.settings.drawers || {}) };
+  if (d.counted !== '' || d.float !== '') drawers[d.date] = { float: Number(d.float) || 0, counted: c.counted, expected: c.expected, diff: c.diff, note: d.note || '', at: Date.now() };
+  S.saveSettings({ drawers, ...(d.float !== '' ? { floatDefault: Number(d.float) || 0 } : {}) });
   ui.month = d.date.slice(0, 7);
   $('#sheet').close();
-  toast(`ปิดยอด ${shortDay(d.date)} แล้ว · ${baht(closeTotal())} 🥤`);
+  toast(`ปิดยอด ${shortDay(d.date)} แล้ว · ${baht(closeTotal())}${c.diff ? (c.diff < 0 ? ` · เงินขาด ${baht(-c.diff)}` : ` · เงินเกิน ${baht(c.diff)}`) : ''}`);
+}
+
+// ---------- พร้อมเพย์ร้าน ----------
+function promptpayCard() {
+  const id = state.settings.promptpay || '';
+  const n = PP.normalizeId(id);
+  return `<section class="card" id="pp"><h3>📲 พร้อมเพย์ร้าน</h3>
+    <p class="muted small">ใช้สร้าง QR พร้อมยอดเงินในหน้าขาย ลูกค้าสแกนแล้วยอดขึ้นเอง ไม่ต้องพิมพ์</p>
+    <div class="row gap"><input inputmode="numeric" class="grow" placeholder="เบอร์มือถือ 10 หลัก หรือเลขบัตร 13 หลัก" value="${esc(id)}" data-input="ppid" autocomplete="off">
+      <button class="btn primary sm" data-action="pp-save">บันทึก</button></div>
+    ${n ? `<p class="small">✅ ${n.label} ${PP.mask(id)} · <button class="link small" data-action="pp-test">ทดสอบ QR ฿1</button></p>` : '<p class="small muted">ยังไม่ได้ตั้ง — หน้าขายจะใช้แบบกดยืนยันรับเงินแทน</p>'}
+    <div id="pp-preview" class="pp-qr" hidden></div>
+  </section>`;
+}
+async function showQR(el, amount) {
+  try {
+    const url = await PP.qrDataUrl(state.settings.promptpay, amount, 300);
+    el.innerHTML = `<img src="${url}" alt="QR พร้อมเพย์ ${baht(amount)}" width="240" height="240"><small>พร้อมเพย์ ${PP.mask(state.settings.promptpay)} · <b>${baht(amount)}</b></small>`;
+    el.hidden = false;
+  } catch (e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; el.hidden = false; }
 }
 
 // ---------- add / edit sheet ----------
@@ -789,9 +851,10 @@ function renderPaySheet() {
       <div class="quick-cash">${quick.map(v => `<button class="chip" data-action="pay-quick" data-v="${v}">${v === total ? 'พอดี' : '฿' + nf.format(v)}</button>`).join('')}</div>
       <div class="change ${rec && change < 0 ? 'short' : ''}" id="pay-change">${rec ? (change < 0 ? `ขาดอีก ${baht(-change)}` : `เงินทอน <b class="num">${baht(change)}</b>`) : 'แตะยอดที่รับมา หรือกด “พอดี”'}</div>
       <button class="btn primary big" data-action="pay-confirm" ${rec && change < 0 ? 'disabled' : ''}>✅ ยืนยันขาย${rec && change > 0 ? ` · ทอน ${baht(change)}` : ''}</button>`
-    : `<p class="g-note">${p.method === 'promptpay' ? '📲 ให้ลูกค้าโอนพร้อมเพย์ยอดนี้ (QR พร้อมยอดเงินจะมาในขั้นถัดไป)' : '📷 ให้ลูกค้าสแกน QR ของร้าน'} แล้วเช็กว่าเงินเข้าก่อนกดยืนยัน</p>
+    : `${p.method === 'promptpay' ? (PP.normalizeId(state.settings.promptpay) ? '<div class="pp-qr" id="pay-qr"><div class="spinner"></div></div><p class="small muted center">ให้ลูกค้าสแกนด้วยแอปธนาคาร ยอดจะขึ้นเอง · เช็กว่าเงินเข้าก่อนกดยืนยัน</p>' : '<p class="g-note">📲 ยังไม่ได้ตั้งเลขพร้อมเพย์ร้าน <button type="button" class="link" data-action="pp-goto">ตั้งค่าตอนนี้</button> · หรือให้ลูกค้าโอนแล้วกดยืนยัน</p>') : '<p class="g-note">📷 ให้ลูกค้าสแกน QR ของร้าน แล้วเช็กว่าเงินเข้าก่อนกดยืนยัน</p>'}
       <button class="btn primary big" data-action="pay-confirm">✅ ได้รับเงินแล้ว · ยืนยันขาย</button>`}
   </div>`;
+  const q = $('#pay-qr'); if (q) showQR(q, total);
 }
 function confirmSale() {
   const lines = cartLines();
@@ -1205,6 +1268,14 @@ document.addEventListener('click', async e => {
     case 'pay-method': ui.pay.method = el.dataset.m; return renderPaySheet();
     case 'pay-quick': ui.pay.received = el.dataset.v; return renderPaySheet();
     case 'pay-confirm': return confirmSale();
+    case 'pp-save': {
+      const v = $('[data-input="ppid"]').value.trim();
+      if (v && !PP.normalizeId(v)) return toast('เลขไม่ถูกต้อง ใช้เบอร์มือถือ 10 หลัก หรือเลข 13 หลัก');
+      S.saveSettings({ promptpay: v.replace(/\D/g, '') });
+      return toast(v ? 'บันทึกพร้อมเพย์ร้านแล้ว' : 'ลบเลขพร้อมเพย์แล้ว');
+    }
+    case 'pp-test': return showQR($('#pp-preview'), 1);
+    case 'pp-goto': $('#sheet').close(); go('settings'); return setTimeout(() => $('#pp')?.scrollIntoView({ behavior: 'smooth' }), 50);
     case 'bill-open': return openBillSheet(state.tx.find(t => t.id === el.dataset.id));
     case 'bill-void': {
       const b = ui.bill;
@@ -1238,6 +1309,7 @@ document.addEventListener('click', async e => {
     case 'close-delete':
       if (!confirm(`ลบยอดปิดวันที่ ${shortDay(closeDraft.date)}?`)) return;
       CHANNELS.forEach(([k]) => { const id = closeId(closeDraft.date, k); if (state.tx.some(t => t.id === id)) S.deleteTx(id); });
+      { const dr = { ...(state.settings.drawers || {}) }; if (dr[closeDraft.date]) { delete dr[closeDraft.date]; S.saveSettings({ drawers: dr }); } }
       $('#sheet').close(); return toast('ลบยอดปิดวันแล้ว');
     case 'month': {
       const [y, m] = ui.month.split('-').map(Number);
@@ -1445,7 +1517,7 @@ document.addEventListener('input', e => {
   if (t.dataset.cl) {
     if (t.dataset.cl === 'date') { if (t.value) { loadCloseDraft(t.value); renderCloseSheet(); } return; }
     closeDraft[t.dataset.cl] = t.value;
-    const el = $('#close-total'); if (el) el.textContent = baht(closeTotal());
+    updateCloseLive();
     return;
   }
   if (t.dataset.rv) {

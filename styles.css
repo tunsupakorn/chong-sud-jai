@@ -404,3 +404,12 @@ form.row select { width: auto; }
 details.more-settings > summary { cursor: pointer; list-style: none; }
 details.more-settings[open] > summary { margin-bottom: 8px; }
 details.more-settings section + section { margin-top: 14px; }
+
+/* ---- phase 2B: PromptPay QR + cash drawer ---- */
+.pp-qr { display: grid; justify-items: center; gap: 6px; padding: 12px; margin: 8px auto; background: #fff; border-radius: 18px; border: 1px solid var(--line, #e3e6f2); width: fit-content; min-width: 200px; min-height: 120px; place-content: center; }
+.pp-qr img { width: 240px; height: 240px; max-width: 70vw; max-height: 70vw; image-rendering: pixelated; }
+.pp-qr small { color: #0B1F3A; }
+.pos-sum { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; display: grid; gap: 8px; }
+.drawer { border: 1px dashed var(--line, #d5d9ec); border-radius: 14px; padding: 10px 12px; display: grid; gap: 8px; }
+.drawer h3 { margin: 0; }
+.drawer .row.gap > .lbl { min-width: 0; }
