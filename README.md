@@ -125,6 +125,14 @@ LINE Platform ── webhook ─────────────────
 - ในแอป › ⚙️ ตั้งค่า › **💚 สั่งผ่าน LINE OA** › ตั้งเวลาเปิด–ปิด เวลาทำ › **เปิดรับออเดอร์**
 - ตั้ง **พร้อมเพย์ร้าน** ไว้ด้วย ลูกค้าถึงเลือกโอนได้
 
+### 5.4 ล็อกอินแอปร้านด้วย LINE (แทน Gmail)
+1. LINE Login channel › แท็บ LIFF › **Add** แอปที่ 2: ชื่อ `แอปร้าน` · Size **Full** · Endpoint URL `https://tunsupakorn.github.io/jukjik-kaa/`
+   · Scopes **openid**, **profile** · Add friend option **Off** › ใส่ LIFF ID ที่ได้ใน `firebase-config.js` › `ownerLiffId`
+2. Firebase Console › Firestore › **Rules** › วางเนื้อหา `firestore.rules` ใหม่ › **Publish** (เพิ่มสิทธิ์ให้บัญชี LINE ของร้าน)
+3. เปิดแอป › **💬 เข้าสู่ระบบด้วย LINE** ครั้งแรกจะขึ้นรหัส LINE (`U…`) › ใส่ใน `worker/wrangler.toml` › `OWNER_LINE_IDS`
+   (คั่นด้วย , ได้หลายคน) › `npx wrangler deploy` › กดเข้าสู่ระบบด้วย LINE อีกครั้ง
+4. Gmail ของเจ้าของร้านยังใช้ได้เหมือนเดิม
+
 ### สิ่งที่ควรรู้
 - **โควตาข้อความ:** แผนฟรีของ LINE OA ส่ง push ได้จำกัดต่อเดือน (เช็กแพ็กเกจปัจจุบันใน OA Manager) ระบบใช้ push แค่ตอน *น้ำพร้อม* และ *ร้านยกเลิก*
   ส่วนยืนยันออเดอร์ใช้ reply (ฟรี) และหน้า LIFF อัปเดตสถานะคิวเอง ถ้าออเดอร์เยอะจนเกินโควตา ให้อัปแพ็กเกจ OA

@@ -100,7 +100,7 @@ const menu = [
   { id: 'm_thaitea', name: 'ชาไทย', emoji: '🧋', prices: { blend: 35, iced: 30, hot: 25 }, price: 35, cost: 12, group: 'drink' },
   { id: 't_pearl', name: 'ไข่มุก', price: 10, cost: 3, group: 'topping' }];
 const env = { FIREBASE_SERVICE_ACCOUNT: JSON.stringify(SA), FIREBASE_PROJECT_ID: 'proj', SHOP_UID: 'shop1', OWNER_EMAIL: 'Owner@Shop.com',
-  LINE_CHANNEL_ID: '1', LINE_CHANNEL_SECRET: 'sec', LINE_LOGIN_CHANNEL_ID: '2', LIFF_ID: 'liff-1', ALLOWED_ORIGINS: 'https://tunsupakorn.github.io' };
+  LINE_CHANNEL_ID: '1', LINE_CHANNEL_SECRET: 'sec', LINE_LOGIN_CHANNEL_ID: '2', LIFF_ID: 'liff-1', OWNER_LINE_IDS: 'UBoss, UOther', ALLOWED_ORIGINS: 'https://tunsupakorn.github.io' };
 let app;
 const call = async (method, path, { token, body, headers = {} } = {}) => {
   const res = await app(new Request('https://w.test' + path, { method, body: body ? JSON.stringify(body) : undefined,
@@ -226,4 +226,25 @@ test('webhook: signature required; keyword replies are free replies', async () =
   assert.match(byToken.r2.text, /0\/10/);
   assert.match(byToken.r3.template.actions[0].uri, /liff\.line\.me\/liff-1/);
   assert.equal(pushes.length, 0);
+});
+
+test('POS sign-in with LINE: only listed LINE accounts get a Firebase custom token', async () => {
+  const denied = await call('POST', '/auth/line', { body: { idToken: 'cust-A' } });
+  assert.equal(denied.status, 403);
+  assert.equal(denied.data.lineUserId, 'UA');
+  assert.equal((await call('POST', '/auth/line', { body: { idToken: 'forged' } })).status, 401);
+  const ok = await call('POST', '/auth/line', { body: { idToken: 'cust-Boss' } });
+  assert.equal(ok.status, 200);
+  const [h, p, s] = ok.data.token.split('.');
+  assert.ok(await crypto.subtle.verify('RSASSA-PKCS1-v1_5', saKeys.publicKey, Buffer.from(s, 'base64url'), enc.encode(`${h}.${p}`)));
+  const claims = JSON.parse(Buffer.from(p, 'base64url'));
+  assert.equal(claims.uid, 'line:UBoss');
+  assert.equal(claims.iss, SA.client_email);
+  assert.equal(claims.claims.lineOwner, true);
+  assert.match(claims.aud, /identitytoolkit/);
+  // a Firebase ID token carrying the lineOwner claim may run the shop actions
+  const placed = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
+  const lineOwner = await firebaseToken({ lineOwner: true, sub: 'line:UBoss' });
+  assert.equal((await call('POST', `/shop/orders/${placed.data.id}`, { token: lineOwner, body: { action: 'accept' } })).status, 200);
+  assert.equal((await call('POST', `/shop/orders/${placed.data.id}`, { token: await firebaseToken({ lineOwner: false }), body: { action: 'ready' } })).status, 403);
 });

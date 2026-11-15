@@ -60,3 +60,10 @@ export async function verifyFirebaseToken(token, projectId, fetchFn = fetch, now
   return claims;
 }
 export function resetFirebaseKeys() { jwks = { keys: [], until: 0 }; }
+
+// Firebase custom token (sign-in for an account Firebase does not know natively, e.g. LINE); free on the Spark plan.
+export async function firebaseCustomToken(sa, uid, claims = {}, now = Date.now()) {
+  const iat = Math.floor(now / 1000);
+  return signJwt({ iss: sa.client_email, sub: sa.client_email, aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat, exp: iat + 3600, uid, claims }, sa.private_key);
+}

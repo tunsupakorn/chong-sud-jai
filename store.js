@@ -1,5 +1,5 @@
 // Data layer: works locally (localStorage) and switches to Firebase Firestore for multi-device sync.
-import { lineApi as LINE_API, firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
+import { ownerLiffId as OWNER_LIFF_ID, lineApi as LINE_API, firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
 export const inviteOnly = !!INVITE_ONLY && !PRIVATE_APP;
 export const privateApp = !!PRIVATE_APP;
 
@@ -160,7 +160,10 @@ async function initFirebase(cfg) {
   try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
   catch { db = F.getFirestore(app); }
   fb = { auth, db, A, F };
-  A.onAuthStateChanged(auth, user => user ? attachUser(user) : detachUser());
+  // a LINE sign-in carries the claim lineOwner (set by the Worker for the shop's LINE accounts)
+  A.onAuthStateChanged(auth, user => user
+    ? user.getIdTokenResult().then(r => attachUser(user, r.claims), () => attachUser(user, {}))
+    : detachUser());
 }
 
 function denied(err) {
@@ -174,16 +177,16 @@ function denied(err) {
   return true;
 }
 
-function attachUser(user) {
+function attachUser(user, claims = {}) {
   const { db, F } = fb;
   unsubs.forEach(u => u()); unsubs = [];
   state.mode = 'cloud';
-  state.isOwner = (!!OWNER_UID && user.uid === OWNER_UID) ||
+  state.isOwner = claims.lineOwner === true || (!!OWNER_UID && user.uid === OWNER_UID) ||
     (!!OWNER_EMAIL && user.emailVerified && String(user.email || '').toLowerCase() === OWNER_EMAIL.toLowerCase());
   // the shop's data lives under one fixed id, so changing the owner's Gmail keeps all records
   const dataUid = (PRIVATE_APP && SHOP_UID) || user.uid;
-  state.user = { uid: user.uid, dataUid: (PRIVATE_APP && SHOP_UID) || user.uid, email: user.email, name: user.displayName, verified: user.emailVerified,
-    provider: user.providerData?.[0]?.providerId || 'password' };
+  state.user = { uid: user.uid, dataUid: (PRIVATE_APP && SHOP_UID) || user.uid, email: user.email, name: user.displayName || claims.name || '', verified: user.emailVerified,
+    provider: claims.lineOwner ? 'line' : user.providerData?.[0]?.providerId || 'password' };
   state.access = 'ok';
   state.localPendingCount = LS.get('jj_tx', []).length;
   // private app: only the owner's account may use it
@@ -373,8 +376,8 @@ export async function recheckAccess() {
   const u = fb.auth.currentUser;
   if (!u) return;
   await u.reload();
-  await u.getIdToken(true);
-  attachUser(fb.auth.currentUser);
+  const r = await u.getIdTokenResult(true);
+  attachUser(fb.auth.currentUser, r.claims);
 }
 
 // ---- owner: who may use the app ----
@@ -386,6 +389,43 @@ export async function allowEmail(email, name = '') {
 }
 export async function removeEmail(email) { await fb.F.deleteDoc(fb.F.doc(fb.db, 'allow', emailKey(email))); }
 export async function setOpenSignup(open) { await fb.F.setDoc(fb.F.doc(fb.db, 'config', 'access'), { open: !!open }, { merge: true }); }
+// ---- sign in with LINE (LIFF login → Worker checks the LINE account → Firebase custom token) ----
+export const lineLoginReady = () => !!(OWNER_LIFF_ID && LINE_API);
+let liffReady = null;
+function loadLiff() {
+  liffReady ||= new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'; s.charset = 'utf-8';
+    s.onload = () => window.liff.init({ liffId: OWNER_LIFF_ID }).then(ok, fail);
+    s.onerror = () => fail(new Error('โหลด LINE ไม่ได้ ตรวจอินเทอร์เน็ต'));
+    document.head.appendChild(s);
+  });
+  return liffReady;
+}
+// returns once signed in; may first leave the page for LINE's login screen and come back (pending flag in sessionStorage)
+export async function signInLine() {
+  needFb();
+  if (!lineLoginReady()) throw new Error('ยังไม่ได้ตั้งค่า ownerLiffId ใน firebase-config.js');
+  await loadLiff();
+  if (!liff.isLoggedIn()) {
+    sessionStorage.setItem('jj_line_login', '1');
+    liff.login({ redirectUri: location.origin + location.pathname });
+    return new Promise(() => {}); // the page is leaving
+  }
+  sessionStorage.removeItem('jj_line_login');
+  const res = await fetch(`${LINE_API.replace(/\/$/, '')}/auth/line`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken: liff.getIDToken() }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) { liff.logout(); }
+    const e = new Error(data.error || 'เข้าสู่ระบบด้วย LINE ไม่ได้'); e.lineUserId = data.lineUserId; e.lineName = data.name; throw e;
+  }
+  await fb.A.signInWithCustomToken(fb.auth, data.token);
+}
+// coming back from LINE's login screen?
+export const lineLoginPending = () => { try { return sessionStorage.getItem('jj_line_login') === '1' || /[?&](code|liffClientId)=/.test(location.search); } catch { return false; } };
+export async function lineSignOutToo() { try { if (window.liff?.isLoggedIn?.()) liff.logout(); } catch {} }
+
 export async function signInGoogle() { needFb(); try { await fb.A.signInWithPopup(fb.auth, new fb.A.GoogleAuthProvider()); } catch (e) { throw new Error(authMsg(e)); } }
 export async function resetPassword(email) { needFb(); try { await fb.A.sendPasswordResetEmail(fb.auth, email); } catch (e) { throw new Error(authMsg(e)); } }
-export async function signOut() { if (fb) await fb.A.signOut(fb.auth); }
+export async function signOut() { await lineSignOutToo(); if (fb) await fb.A.signOut(fb.auth); }

@@ -6,7 +6,7 @@
 // Data stays in Firestore (users/{SHOP_UID}/...), reached with the Firestore REST API and a service account.
 import * as Shop from './shop.js';
 import { Firestore, withRetry } from './firestore.js';
-import { googleToken, verifyFirebaseToken } from './auth.js';
+import { googleToken, verifyFirebaseToken, firebaseCustomToken } from './auth.js';
 import { validSignature, lineApi, verifyLiffToken } from './line.js';
 
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
@@ -190,9 +190,19 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const send = (d, s) => json(d, s, cors);
     try {
       if (req.method === 'GET' && parts[0] === 'menu') return send(await menu());
+      // POS sign-in with LINE: a LINE account on OWNER_LINE_IDS gets a Firebase custom token (claim lineOwner)
+      if (req.method === 'POST' && parts[0] === 'auth' && parts[1] === 'line') {
+        const body = await req.json().catch(() => ({}));
+        const who = body.idToken ? await verifyLiffToken(env, String(body.idToken), fetchFn) : null;
+        if (!who) return send({ error: 'ยืนยันตัวตน LINE ไม่ได้ ลองใหม่อีกครั้ง' }, 401);
+        const owners = String(env.OWNER_LINE_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
+        if (!owners.includes(who.id)) return send({ error: 'บัญชี LINE นี้ยังไม่ได้รับสิทธิ์ใช้แอปร้าน', lineUserId: who.id, name: who.name }, 403);
+        return send({ token: await firebaseCustomToken(sa, `line:${who.id}`, { lineOwner: true, name: who.name }), name: who.name });
+      }
       if (parts[0] === 'shop') {
         const claims = await verifyFirebaseToken(bearer(req), projectId, fetchFn).catch(() => null);
-        const owner = claims && claims.email_verified && String(claims.email || '').toLowerCase() === String(env.OWNER_EMAIL || '').toLowerCase();
+        const owner = claims && (claims.lineOwner === true
+          || (claims.email_verified && String(claims.email || '').toLowerCase() === String(env.OWNER_EMAIL || '').toLowerCase()));
         if (!owner) return send({ error: 'เฉพาะบัญชีเจ้าของร้าน' }, 403);
         if (req.method === 'POST' && parts[1] === 'orders' && parts[2]) {
           const body = await req.json().catch(() => ({}));

@@ -497,7 +497,7 @@ function viewGate() {
     return `<section class="onboard gate">
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔒</span></div>
       <h2>แอปส่วนตัว</h2>
-      <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email}</b></p>
+      <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email || esc(state.user?.name || '')}</b></p>
       <button class="btn primary big" data-action="signout-now">ออกจากระบบ แล้วล็อกอินบัญชีเจ้าของ</button>
     </section>`;
   }
@@ -506,7 +506,10 @@ function viewGate() {
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔐</span></div>
       <h2>เข้าสู่ระบบจุกจิก</h2>
       <p>แอปส่วนตัว · ล็อกอินด้วยบัญชีเดียวกันทุกเครื่อง ข้อมูลซิงก์ถึงกันหมด</p>
-      <button class="btn primary big" data-action="google">เข้าสู่ระบบด้วย Google</button>
+      ${S.lineLoginReady() ? `<button class="btn big line-btn" data-action="line-login" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : '💬 เข้าสู่ระบบด้วย LINE'}</button>` : ''}
+      ${ui.lineDenied ? `<div class="g-note">LINE <b>${esc(ui.lineDenied.name || '')}</b> ยังไม่ได้รับสิทธิ์ ส่งรหัสนี้ให้ผู้ดูแลเพิ่มให้:
+        <p class="gate-email">${esc(ui.lineDenied.id)}</p><button class="btn ghost sm" data-action="line-copy">📋 คัดลอกรหัส</button></div>` : ''}
+      <button class="btn ${S.lineLoginReady() ? 'ghost' : 'primary big'}" data-action="google">เข้าสู่ระบบด้วย Google</button>
       <details class="more"><summary>เข้าสู่ระบบด้วยอีเมล</summary>
         <form class="auth" data-form="auth">
           <input type="email" name="email" placeholder="อีเมล" autocomplete="email" required>
@@ -1690,6 +1693,8 @@ document.addEventListener('click', async e => {
       return;
     }
     case 'signout': if (confirm('ออกจากระบบในเครื่องนี้?')) await S.signOut(); return;
+    case 'line-login': return lineLogin();
+    case 'line-copy': try { await navigator.clipboard.writeText(ui.lineDenied.id); toast('คัดลอกแล้ว'); } catch { toast(ui.lineDenied.id); } return;
     case 'signout-now': await S.signOut(); return;
     case 'gate-recheck':
       ui.gateMsg = 'กำลังตรวจสอบ…'; render();
@@ -1911,6 +1916,17 @@ document.addEventListener('change', async e => {
 // close sheet when tapping the backdrop
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); });
 
+// ---------- sign in with LINE ----------
+async function lineLogin() {
+  ui.authBusy = true; ui.authError = ''; ui.lineDenied = null; render();
+  try { await S.signInLine(); }
+  catch (e) {
+    if (e.lineUserId) ui.lineDenied = { id: e.lineUserId, name: e.lineName };
+    else ui.authError = e.message;
+  }
+  ui.authBusy = false; render();
+}
+
 // ---------- boot ----------
 applyTheme();
 setModelChangeHandler(m => {
@@ -1929,7 +1945,7 @@ S.subscribe(() => {
   if (state.mode === 'cloud' && state.syncStatus === 'synced' && sessionStorage.getItem?.('jj_connect')) setTimeout(takeConnectLink, 0);
 });
 render();
-S.initStore();
+S.initStore().then(() => { if (S.lineLoginPending()) lineLogin(); });
 takeSharedFiles();
 takeConnectLink();
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('sw.js').catch(() => {});

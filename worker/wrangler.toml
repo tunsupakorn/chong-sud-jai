@@ -13,6 +13,8 @@ LINE_LOGIN_CHANNEL_ID = "2012622553"
 LIFF_ID = "2012622553-NfVZ93EA"
 ALLOWED_ORIGINS = "https://tunsupakorn.github.io"
 SHOP_NAME = "จุกจิก คาฟ่า"
+# LINE userId ที่เข้าแอปร้าน (POS) ได้ คั่นด้วย , (ดูรหัสได้จากหน้าล็อกอินของแอปตอนกด "เข้าสู่ระบบด้วย LINE")
+OWNER_LINE_IDS = ""
 
 # ค่าลับ (ใส่ใน Cloudflare dashboard › Worker › Settings › Variables and Secrets หรือ `wrangler secret put`):
 #   LINE_CHANNEL_SECRET        Channel secret ของ Messaging API channel
