@@ -1,5 +1,5 @@
 // Data layer: works locally (localStorage) and switches to Firebase Firestore for multi-device sync.
-import { firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
+import { firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
 export const inviteOnly = !!INVITE_ONLY && !PRIVATE_APP;
 export const privateApp = !!PRIVATE_APP;
 
@@ -177,8 +177,11 @@ function attachUser(user) {
   const { db, F } = fb;
   unsubs.forEach(u => u()); unsubs = [];
   state.mode = 'cloud';
-  state.isOwner = !!OWNER_UID && user.uid === OWNER_UID;
-  state.user = { uid: user.uid, email: user.email, name: user.displayName, verified: user.emailVerified,
+  state.isOwner = (!!OWNER_UID && user.uid === OWNER_UID) ||
+    (!!OWNER_EMAIL && user.emailVerified && String(user.email || '').toLowerCase() === OWNER_EMAIL.toLowerCase());
+  // the shop's data lives under one fixed id, so changing the owner's Gmail keeps all records
+  const dataUid = (PRIVATE_APP && SHOP_UID) || user.uid;
+  state.user = { uid: user.uid, dataUid: (PRIVATE_APP && SHOP_UID) || user.uid, email: user.email, name: user.displayName, verified: user.emailVerified,
     provider: user.providerData?.[0]?.providerId || 'password' };
   state.access = 'ok';
   state.localPendingCount = LS.get('jj_tx', []).length;
@@ -200,7 +203,7 @@ function attachUser(user) {
   }
   state.syncStatus = 'pending';
   emit();
-  unsubs.push(F.onSnapshot(F.collection(db, 'users', user.uid, 'tx'), { includeMetadataChanges: true }, snap => {
+  unsubs.push(F.onSnapshot(F.collection(db, 'users', dataUid, 'tx'), { includeMetadataChanges: true }, snap => {
     state.tx = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     state.syncStatus = snap.metadata.hasPendingWrites || snap.metadata.fromCache ? 'pending' : 'synced';
     emit();
@@ -215,11 +218,11 @@ function attachUser(user) {
       emit();
     }, err => console.warn('access', err)));
   }
-  unsubs.push(F.onSnapshot(F.doc(db, 'users', user.uid), snap => {
+  unsubs.push(F.onSnapshot(F.doc(db, 'users', dataUid), snap => {
     const s = snap.exists() ? snap.data().settings : null;
     state.settings = { ...defaultSettings(), catVersion: s?.categories ? 1 : CAT_VERSION, ...(s || {}) };
     if (s && migrateSettings(state.settings) && !snap.metadata.fromCache)
-      F.setDoc(F.doc(db, 'users', user.uid), { settings: clean(state.settings) }, { mergeFields: ['settings'] }).catch(syncFail);
+      F.setDoc(F.doc(db, 'users', dataUid), { settings: clean(state.settings) }, { mergeFields: ['settings'] }).catch(syncFail);
     emit();
   }, err => { if (!denied(err)) console.warn(err); }));
 }
@@ -237,7 +240,7 @@ function detachUser() {
 }
 
 const clean = o => JSON.parse(JSON.stringify(o)); // drop undefined for Firestore
-const userPath = (...p) => [fb.db, 'users', state.user.uid, ...p];
+const userPath = (...p) => [fb.db, 'users', state.user.dataUid || state.user.uid, ...p];
 
 function writeLocal() { LS.set('jj_tx', state.tx); emit(); }
 

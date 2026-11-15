@@ -9,8 +9,11 @@ export const firebaseConfig = {
   appId: "1:919289249687:web:bdbfdd69e08cbd0aef0ed2"
 };
 
-// เจ้าของร้าน: tun.supakorn1993 (Gmail)
-export const ownerUid = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1";
+// ผู้ดูแลร้าน: บัญชี Gmail นี้เท่านั้นที่ใช้แอปได้ (ต้องตรงกับ firestore.rules ด้วย)
+export const ownerEmail = "weekendchill69@gmail.com";
+// ที่เก็บข้อมูลร้าน users/{shopDataUid} (ไม่เปลี่ยนเมื่อเปลี่ยนผู้ดูแล ข้อมูลเดิมจึงอยู่ครบ)
+export const shopDataUid = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1";
+export const ownerUid = "";
 // true = ใช้ได้เฉพาะเจ้าของร้าน (เฟส 3 จะเพิ่มลูกจ้างพร้อมระบบอนุมัติ)
 export const privateApp = true;
 export const inviteOnly = false;
