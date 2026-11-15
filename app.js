@@ -848,7 +848,7 @@ function lineCard() {
       <label>เวลาทำ (นาที)<input type="number" inputmode="numeric" min="0" max="120" value="${esc(c.prep)}" data-line="prep"></label>
       <label>สะสมครบ (แก้ว)<input type="number" inputmode="numeric" min="1" max="99" value="${esc(c.stampGoal)}" data-line="stampGoal"></label>
     </div>
-    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิกการค้า" value="${esc(c.name || '')}" data-line="name"></label>
+    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิก คาฟ่า" value="${esc(c.name || '')}" data-line="name"></label>
     <label class="line-note">ประกาศถึงลูกค้า<input maxlength="120" placeholder="เช่น วันนี้มะม่วงหมด" value="${esc(c.note)}" data-line="note"></label>
     <button class="btn primary sm" data-action="line-save">บันทึก</button>
     ${state.settings.promptpay ? '' : '<p class="small muted">ยังไม่ได้ตั้งพร้อมเพย์ร้าน ลูกค้าจะเลือกได้แค่เงินสดตอนรับ</p>'}
