@@ -269,3 +269,16 @@ test('slip: attach, shown on the sale, same slip refused on another order', asyn
   assert.equal(tx.hasSlip, true); assert.equal(tx.qrRef, '004:015299123456ABC');
   assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-A', body: { image: img } })).status, 409); // already paid
 });
+
+test('QR image link: PNG for an unpaid PromptPay order only', async () => {
+  const a = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'promptpay' } });
+  const res = await app(new Request(`https://w.test/qr/${a.data.id}.png?dl=1`));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.match(res.headers.get('content-disposition'), /QR-L001-35THB\.png/);
+  const png = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual([...png.slice(1, 4)], [80, 78, 71]);
+  const c = await call('POST', '/orders', { token: 'cust-B', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
+  assert.equal((await app(new Request(`https://w.test/qr/${c.data.id}.png`))).status, 404);
+  assert.equal((await app(new Request('https://w.test/qr/nope.png'))).status, 404);
+});

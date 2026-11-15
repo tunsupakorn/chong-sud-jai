@@ -271,6 +271,11 @@ async function qrPicture() {
   return new Promise(ok => c.toBlob(ok, 'image/png'));
 }
 async function saveQR() {
+  // inside LINE the page cannot save files: open the Worker's real image link in the phone's browser, which downloads it
+  if (window.liff?.isInClient?.()) {
+    liff.openWindow({ url: `${API_BASE}/qr/${encodeURIComponent(ui.order.id)}.png?dl=1`, external: true });
+    return toast('เปิดในเบราว์เซอร์เพื่อบันทึกรูป · ถ้ารูปเปิดขึ้นมาแทน กดค้างที่รูป › บันทึกรูปภาพ');
+  }
   if (!ui.qrUrl) return toast('รอ QR โหลดก่อน');
   const blob = await qrPicture();
   const file = new File([blob], `QR-${ui.order.no}-${ui.order.total}THB.png`, { type: 'image/png' });
