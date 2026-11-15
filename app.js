@@ -613,9 +613,15 @@ function sheetCard() {
       <p class="muted small">เก็บสำเนาทุกรายการไว้ใน Google Sheet และรูปสลิปไว้ใน Google Drive ของคุณเอง</p>
       ${state.mode !== 'cloud' ? '<p class="small">🔐 ล็อกอินบัญชีก่อน แล้วค่อยเชื่อมชีต</p>' : ''}
       <ol class="steps">
-        ${TEMPLATE_URL ? `<li><a class="btn primary sm" href="${TEMPLATE_URL}" target="_blank" rel="noopener">① 📗 สร้างชีตของฉัน (กด “ทำสำเนา”) ↗</a></li>` : `<li><span class="small">📗 ชีตต้นแบบของร้านจะเปิดให้ใช้ในเฟสถัดไป ตอนนี้ใช้ <b>💾 ส่งออก CSV</b> เปิดใน Excel/Sheets ได้</span></li>`}
-        <li><span class="small">② <b>บนคอมพิวเตอร์</b> เปิดชีตที่สร้าง › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> แล้วกดปุ่ม
-          <b>“เปิดแอปและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ! ไม่ต้องคัดลอกลิงก์</span></li>
+        <li class="small"><b>ทำบนคอมพิวเตอร์ ครั้งเดียว ~5 นาที</b> ใช้บัญชี Google ที่จะเก็บชีตและสลิป</li>
+        <li><a class="btn primary sm" href="https://sheets.new" target="_blank" rel="noopener">① 📗 สร้างชีตใหม่ ↗</a>
+          <span class="small">ตั้งชื่อ เช่น “จุกจิก คาฟ่า – บัญชี”</span></li>
+        <li><span class="small">② ในชีต: เมนู <b>ส่วนขยาย › Apps Script</b> › ลบโค้ดเดิมทั้งหมด › วางโค้ดจากปุ่มนี้ › กด 💾 บันทึก</span>
+          <button class="btn ghost sm" data-action="sheet-copy-code">📋 คัดลอกโค้ดสคริปต์</button></li>
+        <li><span class="small">③ ปุ่ม <b>การทำให้ใช้งานได้ › การทำให้ใช้งานได้รายการใหม่</b> › ⚙️ เลือก <b>เว็บแอป</b> ›
+          เรียกใช้ในฐานะ <b>ฉัน</b> · ผู้มีสิทธิ์เข้าถึง <b>ทุกคน</b> › ทำให้ใช้งานได้ › <b>ให้สิทธิ์</b> (ขั้นสูง › ไปที่… › อนุญาต)</span></li>
+        <li><span class="small">④ กลับไปที่ชีต <b>รีเฟรชหน้า</b> › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> › กดปุ่ม
+          <b>“เปิดแอปจุกจิกและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ!</span></li>
       </ol>
       <details class="more"><summary>มีลิงก์ web app อยู่แล้ว</summary>
         <input type="url" placeholder="https://script.google.com/macros/s/…/exec" data-input="sheeturl" autocomplete="off">
@@ -828,7 +834,7 @@ async function showQR(el, amount) {
 
 // ==================== LINE OA: ออเดอร์จากลูกค้า ====================
 const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(state.settings.line || {}) });
-const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', dinein: '🪑 นั่งทานที่ร้าน', curbside: '🚗 รับหน้าร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
+const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
 const lineModes = () => (Array.isArray(lineCfg().modes) && lineCfg().modes.length ? lineCfg().modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
 const ORDER_STATUS = { new: '🆕 ออเดอร์ใหม่', accepted: '🧑‍🍳 กำลังทำ', ready: '☕ รอลูกค้ารับ' };
 const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':').map(Number); return h * 60 + m; };
@@ -1771,6 +1777,14 @@ document.addEventListener('click', async e => {
       try { await Sheet.connect(url); toast('เชื่อม Google Sheet แล้ว 📗'); }
       catch (err) { Sheet.sheet.status = 'error'; Sheet.sheet.msg = err.message; render(); }
       return;
+    }
+    case 'sheet-copy-code': {
+      try {
+        const code = await (await fetch('apps-script/Code.gs', { cache: 'no-cache' })).text();
+        if (!/function doPost/.test(code)) throw new Error('โหลดโค้ดไม่ได้');
+        await navigator.clipboard.writeText(code);
+        return toast('คัดลอกโค้ดแล้ว ไปวางใน Apps Script ได้เลย');
+      } catch (e) { window.open('https://github.com/tunsupakorn/jukjik-kaa/blob/main/apps-script/Code.gs', '_blank', 'noopener'); return toast('คัดลอกเองจากหน้าที่เปิดขึ้น (ปุ่ม Copy raw file)'); }
     }
     case 'sheet-paste': {
       try {

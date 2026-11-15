@@ -150,7 +150,7 @@ export async function syncNow(force = false) {
   notify();
   try {
     const tx = state.tx.map(t => ({ id: t.id, date: t.date, time: t.time || '', type: t.type, amount: t.amount, cat: t.cat,
-      method: t.method || '', merchant: t.merchant || '', note: t.note || '', source: t.source || '', ref: t.ref || '', slipUrl: t.slipUrl || '' }));
+      method: t.method || '', merchant: t.merchant || '', note: t.note || '', source: t.source || '', channel: t.channel || '', ref: t.ref || '', slipUrl: t.slipUrl || '' }));
     const r = await post(c.webapp, { action: 'sync', token: c.token, tx, categories: state.settings.categories, device: deviceLabel() });
     LS.set('jj_sheet_sig', sig);
     LS.set('jj_sheet_rows', r.rows || 0);

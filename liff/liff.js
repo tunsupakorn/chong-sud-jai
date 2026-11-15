@@ -15,8 +15,6 @@ const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
 
 const FULFIL = {
   pickup: { label: 'มารับเองที่ร้าน', emoji: '🛍️', now: 'รับเลย', later: 'นัดเวลารับ' },
-  dinein: { label: 'นั่งทานที่ร้าน', emoji: '🪑', now: 'ทำเลย', later: 'นัดเวลา', ask: 'เลขโต๊ะ / ที่นั่ง (ถ้ามี)' },
-  curbside: { label: 'รับหน้าร้าน', emoji: '🚗', now: 'รับเลย', later: 'นัดเวลารับ', ask: 'รอตรงไหน เช่น ทะเบียนรถ สีรถ', need: true },
   delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵', now: 'ส่งเลย', later: 'นัดเวลาส่ง', ask: 'ที่อยู่จัดส่ง / จุดสังเกต', need: true, phone: true },
 };
 const fulfilText = f => f ? `${FULFIL[f.mode]?.emoji || ''} ${FULFIL[f.mode]?.label || ''}${f.detail ? ` · ${f.detail}` : ''}` : '';

@@ -14,8 +14,8 @@ const SHEET_MONTH = 'สรุปรายเดือน';
 const SHEET_CAT = 'แยกหมวด';
 const SHEET_INFO = 'เกี่ยวกับ';
 const HEADER_BG = '#FFC83D';
-const METHOD = { cash: 'เงินสด', transfer: 'โอน', card: 'บัตร' };
-const SOURCE = { manual: 'จดเอง', slip: 'สลิป', statement: 'ใบแจ้งยอด' };
+const METHOD = { cash: 'เงินสด', transfer: 'โอน', card: 'บัตร', promptpay: 'พร้อมเพย์', scan: 'สแกนจ่าย' };
+const SOURCE = { manual: 'จดเอง', slip: 'สลิป', statement: 'ใบแจ้งยอด', pos: 'ขายหน้าร้าน', close: 'ปิดยอด' };
 
 /** รันครั้งแรกจากหน้าแก้ไขสคริปต์ เพื่ออนุญาตสิทธิ์และเตรียมชีต */
 function setup() {
@@ -233,7 +233,7 @@ function writeAll(req) {
     // noon, so the day can't shift across time zones
     return [new Date(p[0], p[1] - 1, p[2], 12), t.date.slice(0, 7), move ? 'ย้ายเงิน' : inc ? 'รายรับ' : 'รายจ่าย', safe(catName[t.cat] || t.cat || 'ไม่ระบุ'),
       amt, move ? 0 : inc ? amt : -amt, METHOD[t.method] || safe(t.method), safe(t.merchant), safe(t.note),
-      SOURCE[t.source] || safe(t.source), safe(t.ref), safe(t.time), slipLink(t.slipUrl), safe(t.id)];
+      t.channel === 'line' ? 'LINE OA' : SOURCE[t.source] || safe(t.source), safe(t.ref), safe(t.time), slipLink(t.slipUrl), safe(t.id)];
   });
   const sh = getSheet(SHEET_TX);
   sh.clear();

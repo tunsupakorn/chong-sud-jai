@@ -83,8 +83,8 @@ test('public order hides cost and shows promptpay only while unpaid', () => {
 test('fulfilment: modes, required details, ready text', () => {
   const cfg = Shop.lineSettings({});
   assert.deepEqual(Shop.checkFulfil(cfg, undefined), { mode: 'pickup' });
-  assert.deepEqual(Shop.checkFulfil(cfg, { mode: 'dinein', detail: 'โต๊ะ 3' }), { mode: 'dinein', detail: 'โต๊ะ 3' });
-  assert.throws(() => Shop.checkFulfil(cfg, { mode: 'curbside' }), /รอตรงไหน/);
+  assert.throws(() => Shop.checkFulfil(cfg, { mode: 'dinein' }), /ไม่ได้เปิด/); // removed ways
+  assert.deepEqual(Shop.fulfilModes({ modes: ['pickup', 'curbside'] }), ['pickup']);
   assert.throws(() => Shop.checkFulfil(cfg, { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '12' }), /เบอร์/);
   assert.deepEqual(Shop.checkFulfil(cfg, { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '081-234-5678' }), { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '0812345678' });
   assert.throws(() => Shop.checkFulfil({ ...cfg, modes: ['pickup'] }, { mode: 'delivery' }), /ไม่ได้เปิด/);
