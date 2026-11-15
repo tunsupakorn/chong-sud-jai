@@ -498,25 +498,19 @@ function viewGate() {
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔒</span></div>
       <h2>แอปส่วนตัว</h2>
       <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email || esc(state.user?.name || '')}</b></p>
-      <button class="btn primary big" data-action="signout-now">ออกจากระบบ แล้วล็อกอินบัญชีเจ้าของ</button>
+      <button class="btn primary big" data-action="signout-now">ออกจากระบบ แล้วเข้าด้วย LINE ของร้าน</button>
     </section>`;
   }
   if (S.privateApp && state.mode !== 'cloud') {
     return `<section class="onboard gate">
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔐</span></div>
       <h2>เข้าสู่ระบบจุกจิก</h2>
-      <p>แอปส่วนตัว · ล็อกอินด้วยบัญชีเดียวกันทุกเครื่อง ข้อมูลซิงก์ถึงกันหมด</p>
-      ${S.lineLoginReady() ? `<button class="btn big line-btn" data-action="line-login" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : '💬 เข้าสู่ระบบด้วย LINE'}</button>` : ''}
+      <p>แอปของร้าน · ล็อกอินด้วย LINE ของเจ้าของร้าน ข้อมูลซิงก์ทุกเครื่อง</p>
+      ${S.lineLoginReady()
+        ? `<button class="btn big line-btn" data-action="line-login" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : '💬 เข้าสู่ระบบด้วย LINE'}</button>`
+        : '<p class="g-note">ยังตั้งค่าการล็อกอินด้วย LINE ไม่เสร็จ (ownerLiffId ใน firebase-config.js)</p>'}
       ${ui.lineDenied ? `<div class="g-note">LINE <b>${esc(ui.lineDenied.name || '')}</b> ยังไม่ได้รับสิทธิ์ ส่งรหัสนี้ให้ผู้ดูแลเพิ่มให้:
         <p class="gate-email">${esc(ui.lineDenied.id)}</p><button class="btn ghost sm" data-action="line-copy">📋 คัดลอกรหัส</button></div>` : ''}
-      <button class="btn ${S.lineLoginReady() ? 'ghost' : 'primary big'}" data-action="google">เข้าสู่ระบบด้วย Google</button>
-      <details class="more"><summary>เข้าสู่ระบบด้วยอีเมล</summary>
-        <form class="auth" data-form="auth">
-          <input type="email" name="email" placeholder="อีเมล" autocomplete="email" required>
-          <input type="password" name="pw" placeholder="รหัสผ่าน" autocomplete="current-password" required>
-          <button class="btn ghost" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
-        </form>
-      </details>
       ${ui.authError ? `<p class="err">${esc(ui.authError)}</p>` : ''}
       ${state.syncStatus === 'error' ? `<p class="err">${esc(state.syncError)}</p>` : ''}
     </section>`;

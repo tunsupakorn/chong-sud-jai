@@ -10,7 +10,7 @@ export const firebaseConfig = {
 };
 
 // ผู้ดูแลร้าน: บัญชี Gmail นี้เท่านั้นที่ใช้แอปได้ (ต้องตรงกับ firestore.rules ด้วย)
-export const ownerEmail = "weekendchill69@gmail.com";
+export const ownerEmail = "tun.supakorn1993@gmail.com";
 // ที่เก็บข้อมูลร้าน users/{shopDataUid} (ไม่เปลี่ยนเมื่อเปลี่ยนผู้ดูแล ข้อมูลเดิมจึงอยู่ครบ)
 export const shopDataUid = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1";
 export const ownerUid = "";
@@ -20,4 +20,4 @@ export const inviteOnly = false;
 // ระบบสั่งผ่าน LINE OA: URL ของ Cloudflare Worker (ได้หลัง deploy โฟลเดอร์ worker/) เช่น https://jukjik-kaa-line.<ชื่อบัญชี>.workers.dev
 export const lineApi = "https://jukjik-kaa-line.jukjik-kaa.workers.dev";
 // ล็อกอินแอปร้านด้วย LINE: LIFF app ที่ Endpoint URL = หน้าแอปนี้ (ดู README ขั้นที่ 5.4)
-export const ownerLiffId = "";
+export const ownerLiffId = "2012622553-L0dutqep";
