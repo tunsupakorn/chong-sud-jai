@@ -1,15 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // แอปส่วนตัว: ใช้ได้เฉพาะบัญชีเจ้าของ (tun.supakorn1993@gmail.com) ทุกเครื่องที่ล็อกอินบัญชีนี้
-    function isOwner() {
-      return request.auth != null && request.auth.uid == 'bccZ2Cvc0sYEY9VPt6BCyqIiU9R2';
-    }
-    match /users/{uid} {
-      allow read, write: if isOwner() && request.auth.uid == uid;
-      match /{document=**} {
-        allow read, write: if isOwner() && request.auth.uid == uid;
-      }
+    // จุกจิกการค้า: ใช้ได้เฉพาะเจ้าของร้าน (ใส่ uid หลังล็อกอินครั้งแรก) — ตอนนี้ปิดทั้งหมดไว้ก่อน
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
