@@ -100,6 +100,23 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     if (o.paid || !Shop.OPEN_STATUSES.includes(o.status)) throw new Shop.OrderError('เปลี่ยนวิธีจ่ายไม่ได้แล้ว', 409);
     return { payMethod: 'cash', payClaimed: false };
   };
+  // slip: stored at slips/line-{id} (the sale's id later), order marked as transfer claimed
+  async function attachSlip(who, id, body) {
+    const { image, ref } = Shop.checkSlip(body);
+    if (ref) {
+      const used = await db.where(shop, 'orders', [['slipRef', ref]]);
+      if (used.some(d => d.id !== id)) throw new Shop.OrderError('สลิปนี้เคยใช้กับออเดอร์อื่นแล้ว', 409);
+    }
+    await withRetry(async () => {
+      const doc = await myOrder(who, id);
+      const o = doc.data;
+      if (o.payMethod !== 'promptpay' || o.paid || !Shop.OPEN_STATUSES.includes(o.status)) throw new Shop.OrderError('ออเดอร์นี้แนบสลิปไม่ได้แล้ว', 409);
+      await db.commit([
+        db.set(`${shop}/slips/line-${id}`, { data: image, at: Date.now(), orderId: id }),
+        db.patch(`${shop}/orders/${id}`, { payClaimed: true, payClaimedAt: Date.now(), hasSlip: true, slipRef: ref || null, updatedAt: Date.now() }, doc.updateTime),
+      ]);
+    });
+  }
   const cancel = o => {
     if (o.status !== 'new') throw new Shop.OrderError('ร้านเริ่มทำแล้ว ยกเลิกเองไม่ได้ ทักแชทร้านได้เลย', 409);
     if (o.paid || o.payClaimed) throw new Shop.OrderError('แจ้งโอนแล้ว ทักแชทร้านเพื่อยกเลิก', 409);
@@ -226,6 +243,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
         }
         const step = { claim, cash: toCash, cancel }[parts[2]];
         if (req.method === 'POST' && step) { await customerChange(who, id, step); return send({ ok: true }); }
+        if (req.method === 'POST' && parts[2] === 'slip') { await attachSlip(who, id, await req.json().catch(() => ({}))); return send({ ok: true }); }
       }
       if (parts[0] === 'me') {
         const [c, { cfg }] = await Promise.all([db.get(`${shop}/customers/${who.id}`), loadShop()]);

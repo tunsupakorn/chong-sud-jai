@@ -21,3 +21,7 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .order-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .order-list button { width: 100%; display: flex; justify-content: space-between; gap: 10px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px; cursor: pointer; }
 .btn-col { display: grid; gap: 10px; }
+.slip-btn { display: flex; justify-content: center; align-items: center; cursor: pointer; }
+.pay-steps { margin: 4px 0 12px; padding-left: 20px; color: var(--text-2); }
+.pay-steps li { margin: 2px 0; }
+.btn-col .link { justify-self: center; }

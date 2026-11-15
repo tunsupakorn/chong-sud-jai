@@ -859,7 +859,7 @@ function saveLine(patch) {
 
 function orderCard(o) {
   const pay = o.paid ? '<span class="pill ok">ชำระแล้ว</span>'
-    : o.payMethod === 'promptpay' ? (o.payClaimed ? '<span class="pill warn">ลูกค้าแจ้งโอนแล้ว · เช็กแอปธนาคาร</span>' : '<span class="pill">พร้อมเพย์ · ยังไม่โอน</span>')
+    : o.payMethod === 'promptpay' ? (o.hasSlip ? '<span class="pill warn">แนบสลิปแล้ว · เช็กยอดเข้า</span>' : o.payClaimed ? '<span class="pill warn">ลูกค้าแจ้งโอนแล้ว · เช็กแอปธนาคาร</span>' : '<span class="pill">พร้อมเพย์ · ยังไม่โอน</span>')
     : '<span class="pill">💵 เงินสดตอนรับ</span>';
   const confirmPP = o.payMethod === 'promptpay' && !o.paid ? `<button class="btn ghost sm" data-action="ord-paid" data-id="${esc(o.id)}">✓ เงินเข้าแล้ว</button>` : '';
   const actions = o.status === 'new'
@@ -878,7 +878,7 @@ function orderCard(o) {
     <ul class="order-items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>×${i.qty}</b></li>`).join('')}</ul>
     ${o.note ? `<p class="order-note">📝 ${esc(o.note)}</p>` : ''}
     <div class="row between wrap gap"><b class="num order-total">${baht(o.total)}</b>${pay}</div>
-    <div class="order-actions">${actions}</div>
+    <div class="order-actions">${o.hasSlip ? `<button class="btn ghost sm" data-action="ord-slip" data-id="${esc(o.id)}">🧾 ดูสลิป</button>` : ''}${actions}</div>
   </article>`;
 }
 
@@ -1580,11 +1580,23 @@ document.addEventListener('click', async e => {
     case 'ord-paid': {
       const o = orderById(el.dataset.id);
       if (!o || !confirm(`เช็กแล้วว่าเงิน ${baht(o.total)} ของ ${o.no} เข้าบัญชีร้าน?`)) return;
+      if ($('#sheet').open) $('#sheet').close();
       return orderAction(o.id, 'paid', `${o.no} ชำระแล้ว ✅`);
     }
     case 'ord-cash': {
       const o = orderById(el.dataset.id); if (!o) return;
       return orderAction(o.id, 'cash', `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
+    }
+    case 'ord-slip': {
+      const o = orderById(el.dataset.id); if (!o) return;
+      $('#sheet').innerHTML = `<div class="sheet-body"><div class="grab" aria-hidden="true"></div>
+        <div class="row between"><h2>🧾 สลิป ${esc(o.no)} · ${baht(o.total)}</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
+        <p class="small muted">${esc(o.displayName || '')}${o.slipRef ? ' · ✓ อ่าน QR บนสลิปได้ (กันสลิปซ้ำแล้ว)' : ' · อ่าน QR บนสลิปไม่ได้ ตรวจในแอปธนาคารด้วย'}</p>
+        <div class="slip-box" id="ord-slip-box"></div>
+        ${!o.paid ? `<button class="btn primary big" data-action="ord-paid" data-id="${esc(o.id)}">✓ ยอด ${baht(o.total)} เข้าแล้ว</button>` : ''}
+      </div>`;
+      if (!$('#sheet').open) $('#sheet').showModal();
+      return showSlipIn($('#ord-slip-box'), `line-${o.id}`);
     }
     case 'ord-done': return orderAction(el.dataset.id, 'done', 'ส่งมอบแล้ว · บันทึกยอดขายแล้ว 🥤');
     case 'ord-cancel': {
