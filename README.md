@@ -75,6 +75,71 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 > ไม่ต้องเอาลิงก์ web app ไปไว้ใน GitHub แอปจะจับคู่กับสคริปต์ด้วยรหัสลับตอนกดเชื่อมต่อครั้งแรก
 > ถ้าต้องการจับคู่ใหม่ ให้รันฟังก์ชัน `resetPairing` ในหน้าแก้ไขสคริปต์
 
+## ขั้นที่ 5 — สั่งผ่าน LINE OA (ไม่บังคับ)
+
+ลูกค้าแอดไลน์ร้าน › กดเมนูด้านล่างแชท › เลือกน้ำ › เลือก **รับเลย** หรือ **นัดเวลารับ** › จ่าย **พร้อมเพย์** (QR ยอดพอดี) หรือ **เงินสดตอนรับ**
+ออเดอร์เด้งเข้าแอปที่ 🛒 ขาย › **ออเดอร์ LINE** พร้อมเสียงเตือน กด *รับออเดอร์ › ทำเสร็จ (LINE แจ้งลูกค้าเอง) › รับเงิน/ส่งมอบ*
+ส่งมอบแล้วยอดขายลงบัญชีอัตโนมัติ (นับในรายงานหน้าขาย ปิดยอด และ Google Sheet เหมือนบิลหน้าร้าน)
+
+```
+ลูกค้า LINE ── LIFF (liff/ บน GitHub Pages) ──┐
+LINE Platform ── webhook ─────────────────────┼──► Cloudflare Worker (worker/, ฟรี) ──► Firestore ◄── แอป POS อ่านออเดอร์สด
+แอป POS ── กดปุ่มรับ/เสร็จ/รับเงิน ────────────┘        └──► LINE push "น้ำพร้อมแล้ว"
+```
+ใช้ Firebase แผนฟรี (Spark) ต่อได้ ไม่ต้องผูกบัตร
+
+### 5.1 สร้างบัญชี LINE
+1. **manager.line.biz** › สร้าง LINE Official Account ของร้าน
+2. ตั้งค่า › **Messaging API** › เปิดใช้งาน (สร้าง Provider ใหม่ชื่อร้าน)
+3. **developers.line.biz** › เลือก Provider › channel Messaging API:
+   - แท็บ Basic settings: คัดลอก **Channel secret**
+   - คัดลอก **Channel ID** ด้วย (Worker ออก access token อายุสั้นเองจาก ID + secret ไม่ต้อง issue long-lived token)
+4. Provider เดียวกัน › **Create a new channel › LINE Login** (ประเภท Web app) › คัดลอก **Channel ID**
+5. ใน LINE Login channel › แท็บ **LIFF** › Add:
+   - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/jukjik-kaa/liff/index.html`
+   - Scopes: `openid`, `profile`, `chat_message.write` · Bot link feature: **On (Aggressive)** แล้วเลือกบัญชี OA ของร้าน
+   - คัดลอก **LIFF ID** (เช่น `2001234567-AbCdEfGh`)
+
+### 5.2 Deploy Cloudflare Worker (ฟรี ไม่ต้องผูกบัตร)
+1. สมัคร **dash.cloudflare.com** (อีเมลอย่างเดียว) › Workers & Pages › เลือกชื่อ subdomain `*.workers.dev`
+2. **Service account ของ Firebase:** Firebase Console › ⚙️ Project settings › **Service accounts** › **Generate new private key** › ได้ไฟล์ JSON
+   (ไฟล์นี้คือกุญแจเข้าฐานข้อมูล **ห้าม** commit หรือส่งในแชท)
+3. บนคอม: `cd worker && npm install && npm test` › `npx wrangler login` › `npx wrangler deploy`
+   จะได้ URL เช่น `https://jukjik-kaa-line.<ชื่อบัญชี>.workers.dev`
+4. ใส่ค่าลับ 2 ตัว (Cloudflare dashboard › Worker › Settings › **Variables and Secrets** › Add › Type: Secret หรือใช้คำสั่ง):
+   - `LINE_CHANNEL_SECRET` = Channel secret ของ Messaging API channel: `npx wrangler secret put LINE_CHANNEL_SECRET`
+   - `FIREBASE_SERVICE_ACCOUNT` = เนื้อหาไฟล์ JSON ทั้งไฟล์: `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT < ไฟล์.json`
+5. ใส่ URL ของ Worker:
+   - `liff/config.js` › `API_BASE` และ `LIFF_ID`
+   - `firebase-config.js` › `lineApi`
+   - `worker/wrangler.toml` › `LIFF_ID` แล้ว `npx wrangler deploy` อีกครั้ง
+6. Messaging API channel › **Webhook URL** = `<URL ของ Worker>/webhook` › Verify › เปิด **Use webhook**
+7. commit ขึ้น GitHub
+
+ค่าที่ไม่ใช่ความลับ (Channel ID, อีเมลเจ้าของร้าน, project id) อยู่ใน `worker/wrangler.toml`
+แผนฟรีของ Workers ใช้ได้วันละ 100,000 request เกินแล้วแค่หยุดทำงานถึงวันถัดไป ไม่มีบิล
+
+### 5.3 ตั้งค่า OA
+- LINE OA Manager › ตอบกลับอัตโนมัติ: **ปิด** "ข้อความตอบกลับอัตโนมัติ" (บอทตอบเอง) แต่เปิด **แชท** ไว้ได้ เจ้าของยังคุยกับลูกค้าเองได้
+- **Rich menu** (เมนูด้านล่างแชท) › สร้างปุ่ม: 🥤 สั่งน้ำ = ลิงก์ `https://liff.line.me/<LIFF ID>` · 🧾 คิวของฉัน = ข้อความ `คิว` · ⭐ แต้มสะสม = ข้อความ `แต้ม`
+- ในแอป › ⚙️ ตั้งค่า › **💚 สั่งผ่าน LINE OA** › ตั้งเวลาเปิด–ปิด เวลาทำ › **เปิดรับออเดอร์**
+- ตั้ง **พร้อมเพย์ร้าน** ไว้ด้วย ลูกค้าถึงเลือกโอนได้
+
+### 5.4 ล็อกอินแอปร้านด้วย LINE (แทน Gmail)
+1. LINE Login channel › แท็บ LIFF › **Add** แอปที่ 2: ชื่อ `แอปร้าน` · Size **Full** · Endpoint URL `https://tunsupakorn.github.io/jukjik-kaa/`
+   · Scopes **openid**, **profile** · Add friend option **Off** › ใส่ LIFF ID ที่ได้ใน `firebase-config.js` › `ownerLiffId`
+2. Firebase Console › Firestore › **Rules** › วางเนื้อหา `firestore.rules` ใหม่ › **Publish** (เพิ่มสิทธิ์ให้บัญชี LINE ของร้าน)
+3. เปิดแอป › **💬 เข้าสู่ระบบด้วย LINE** ครั้งแรกจะขึ้นรหัส LINE (`U…`) › ใส่ใน `worker/wrangler.toml` › `OWNER_LINE_IDS`
+   (คั่นด้วย , ได้หลายคน) › `npx wrangler deploy` › กดเข้าสู่ระบบด้วย LINE อีกครั้ง
+4. Gmail ของเจ้าของร้านยังใช้ได้เหมือนเดิม
+
+### สิ่งที่ควรรู้
+- **โควตาข้อความ:** แผนฟรีของ LINE OA ส่ง push ได้จำกัดต่อเดือน (เช็กแพ็กเกจปัจจุบันใน OA Manager) ระบบใช้ push แค่ตอน *น้ำพร้อม* และ *ร้านยกเลิก*
+  ส่วนยืนยันออเดอร์ใช้ reply (ฟรี) และหน้า LIFF อัปเดตสถานะคิวเอง ถ้าออเดอร์เยอะจนเกินโควตา ให้อัปแพ็กเกจ OA
+- **เช็กเงินโอน:** พร้อมเพย์บัญชีบุคคลไม่มีระบบแจ้งเงินเข้า ลูกค้ากด "โอนแล้ว" แล้วร้านเช็กในแอปธนาคารก่อนกด **✓ เงินเข้าแล้ว**
+- ลูกค้ามีออเดอร์ค้างได้ไม่เกิน 2 รายการ และนัดรับได้เฉพาะวันนี้ในเวลาเปิดร้าน ราคาคิดใหม่ที่เซิร์ฟเวอร์จากเมนูร้านทุกครั้ง (ลูกค้าไม่เห็นต้นทุน)
+- คีย์เวิร์ดที่บอทตอบ: `เมนู`/`สั่ง` · `คิว`/`สถานะ` · `แต้ม` ข้อความอื่นปล่อยให้ร้านตอบเองในแชท
+
 ---
 
 ## ไฟล์ในโปรเจกต์
@@ -91,6 +156,8 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 | `sheets.js` | ส่งสำเนาข้อมูลลง Google Sheet |
 | `qr.js` | อ่าน QR บนสลิปในเครื่อง (เลขอ้างอิงธนาคาร กันสลิปซ้ำ) |
 | `apps-script/` | สคริปต์ฝั่ง Google Sheet (Apps Script) |
+| `liff/` | หน้าสั่งน้ำใน LINE (LIFF) ของลูกค้า |
+| `worker/` | Cloudflare Worker: API ของหน้า LIFF, LINE webhook, ปุ่มจัดการออเดอร์ของร้าน (แจ้งลูกค้า/บันทึกยอดขาย) |
 | `firebase-config.js` | ค่า Firebase ของคุณ |
 | `firestore.rules` | กฎความปลอดภัยฐานข้อมูล |
 | `sw.js`, `manifest.webmanifest`, `icons/` | ทำให้ติดตั้งเป็นแอปและใช้ออฟไลน์ได้ |

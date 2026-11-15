@@ -444,6 +444,8 @@ function viewSettings() {
 
     ${promptpayCard()}
 
+    ${lineCard()}
+
     ${geminiCard()}
 
     ${sheetCard()}
@@ -495,7 +497,7 @@ function viewGate() {
     return `<section class="onboard gate">
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔒</span></div>
       <h2>แอปส่วนตัว</h2>
-      <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email}</b></p>
+      <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email || esc(state.user?.name || '')}</b></p>
       <button class="btn primary big" data-action="signout-now">ออกจากระบบ แล้วล็อกอินบัญชีเจ้าของ</button>
     </section>`;
   }
@@ -504,7 +506,10 @@ function viewGate() {
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔐</span></div>
       <h2>เข้าสู่ระบบจุกจิก</h2>
       <p>แอปส่วนตัว · ล็อกอินด้วยบัญชีเดียวกันทุกเครื่อง ข้อมูลซิงก์ถึงกันหมด</p>
-      <button class="btn primary big" data-action="google">เข้าสู่ระบบด้วย Google</button>
+      ${S.lineLoginReady() ? `<button class="btn big line-btn" data-action="line-login" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : '💬 เข้าสู่ระบบด้วย LINE'}</button>` : ''}
+      ${ui.lineDenied ? `<div class="g-note">LINE <b>${esc(ui.lineDenied.name || '')}</b> ยังไม่ได้รับสิทธิ์ ส่งรหัสนี้ให้ผู้ดูแลเพิ่มให้:
+        <p class="gate-email">${esc(ui.lineDenied.id)}</p><button class="btn ghost sm" data-action="line-copy">📋 คัดลอกรหัส</button></div>` : ''}
+      <button class="btn ${S.lineLoginReady() ? 'ghost' : 'primary big'}" data-action="google">เข้าสู่ระบบด้วย Google</button>
       <details class="more"><summary>เข้าสู่ระบบด้วยอีเมล</summary>
         <form class="auth" data-form="auth">
           <input type="email" name="email" placeholder="อีเมล" autocomplete="email" required>
@@ -827,6 +832,101 @@ async function showQR(el, amount) {
   } catch (e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; el.hidden = false; }
 }
 
+// ==================== LINE OA: ออเดอร์จากลูกค้า ====================
+const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(state.settings.line || {}) });
+const ORDER_STATUS = { new: '🆕 ออเดอร์ใหม่', accepted: '🧑‍🍳 กำลังทำ', ready: '☕ รอลูกค้ารับ' };
+const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':').map(Number); return h * 60 + m; };
+const openOrders = () => [...state.orders].sort((a, b) => pickupMin(a) - pickupMin(b) || (a.createdAt || 0) - (b.createdAt || 0));
+const newOrderCount = () => state.orders.filter(o => o.status === 'new').length;
+
+function lineCard() {
+  const c = lineCfg();
+  return `<section class="card" id="line"><h3>💚 สั่งผ่าน LINE OA</h3>
+    <p class="muted small">ลูกค้าสั่งและจ่ายผ่าน LINE ออเดอร์เข้ามาที่ 🛒 ขาย › ออเดอร์ LINE · ตั้งค่าบัญชี LINE ตามคู่มือใน README</p>
+    <div class="seg"><button aria-selected="${c.open}" data-action="line-open" data-v="1">🟢 เปิดรับออเดอร์</button>
+      <button aria-selected="${!c.open}" data-action="line-open" data-v="">⏸️ ปิดรับ</button></div>
+    <div class="line-grid">
+      <label>เปิด<input type="time" value="${esc(c.from)}" data-line="from"></label>
+      <label>ปิด<input type="time" value="${esc(c.to)}" data-line="to"></label>
+      <label>เวลาทำ (นาที)<input type="number" inputmode="numeric" min="0" max="120" value="${esc(c.prep)}" data-line="prep"></label>
+      <label>สะสมครบ (แก้ว)<input type="number" inputmode="numeric" min="1" max="99" value="${esc(c.stampGoal)}" data-line="stampGoal"></label>
+    </div>
+    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิก คาฟ่า" value="${esc(c.name || '')}" data-line="name"></label>
+    <label class="line-note">ประกาศถึงลูกค้า<input maxlength="120" placeholder="เช่น วันนี้มะม่วงหมด" value="${esc(c.note)}" data-line="note"></label>
+    <button class="btn primary sm" data-action="line-save">บันทึก</button>
+    ${state.settings.promptpay ? '' : '<p class="small muted">ยังไม่ได้ตั้งพร้อมเพย์ร้าน ลูกค้าจะเลือกได้แค่เงินสดตอนรับ</p>'}
+  </section>`;
+}
+function saveLine(patch) {
+  const next = { ...lineCfg(), ...patch };
+  // the ordering page reads the menu from the account, so make sure it is saved there (not only the built-in default)
+  S.saveSettings({ line: next, ...(state.settings.menu ? {} : { menu: menu() }) });
+}
+
+function orderCard(o) {
+  const pay = o.paid ? '<span class="pill ok">ชำระแล้ว</span>'
+    : o.payMethod === 'promptpay' ? (o.payClaimed ? '<span class="pill warn">ลูกค้าแจ้งโอนแล้ว · เช็กแอปธนาคาร</span>' : '<span class="pill">พร้อมเพย์ · ยังไม่โอน</span>')
+    : '<span class="pill">💵 เงินสดตอนรับ</span>';
+  const confirmPP = o.payMethod === 'promptpay' && !o.paid ? `<button class="btn ghost sm" data-action="ord-paid" data-id="${esc(o.id)}">✓ เงินเข้าแล้ว</button>` : '';
+  const actions = o.status === 'new'
+    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="accept">รับออเดอร์</button>${confirmPP}
+       <button class="btn danger sm" data-action="ord-cancel" data-id="${esc(o.id)}">ยกเลิก</button>`
+    : o.status === 'accepted'
+    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="ready">ทำเสร็จ · แจ้งลูกค้า</button>${confirmPP}
+       <button class="btn danger sm" data-action="ord-cancel" data-id="${esc(o.id)}">ยกเลิก</button>`
+    : o.paid ? `<button class="btn primary" data-action="ord-done" data-id="${esc(o.id)}">ส่งมอบแล้ว ✓</button>`
+    : o.payMethod === 'promptpay' ? `${confirmPP}<button class="btn ghost sm" data-action="ord-cash" data-id="${esc(o.id)}">💵 ลูกค้าจ่ายเงินสดแทน</button>`
+    : `<button class="btn primary" data-action="ord-cash" data-id="${esc(o.id)}">💵 รับเงินสด ${baht(o.total)} · ส่งมอบ</button>`;
+  return `<article class="card order ${o.status}">
+    <div class="row between"><div><b class="order-no">${esc(o.no)}</b> <span class="muted small">${esc(o.displayName || '')}</span></div>
+      <span class="order-time">${o.pickup?.mode === 'later' ? `⏰ นัด ${esc(o.pickup.at)}` : `⚡ รับเลย ~${esc(o.pickup?.at || '')}`}</span></div>
+    <p class="small muted">${ORDER_STATUS[o.status] || ''}</p>
+    <ul class="order-items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>×${i.qty}</b></li>`).join('')}</ul>
+    ${o.note ? `<p class="order-note">📝 ${esc(o.note)}</p>` : ''}
+    <div class="row between wrap gap"><b class="num order-total">${baht(o.total)}</b>${pay}</div>
+    <div class="order-actions">${actions}</div>
+  </article>`;
+}
+
+function viewOrders() {
+  const c = lineCfg(), list = openOrders();
+  return `${header('ออเดอร์ LINE', 'sell')}
+    <div class="row between gap" style="margin-bottom:6px"><span class="small">${c.open ? '🟢 เปิดรับออเดอร์อยู่' : '⏸️ ปิดรับออเดอร์อยู่'} · ${esc(c.from)}–${esc(c.to)}</span>
+      <button class="btn ghost sm" data-action="line-open" data-v="${c.open ? '' : '1'}">${c.open ? 'ปิดรับ' : 'เปิดรับ'}</button></div>
+    ${state.mode !== 'cloud' ? '<p class="g-note">ต้องล็อกอินบัญชีร้านก่อน ถึงจะเห็นออเดอร์จาก LINE</p>' : ''}
+    ${list.length ? list.map(orderCard).join('') : '<p class="muted center pad">ยังไม่มีออเดอร์ที่ค้างอยู่ 💤</p>'}`;
+}
+
+function lineBanner() {
+  const n = state.orders.length, fresh = newOrderCount();
+  if (!n && !lineCfg().open) return '';
+  return `<button class="line-banner ${fresh ? 'hot' : ''}" data-action="orders-open">
+    <span>💚 ออเดอร์ LINE ${n ? `<b>${n}</b> รายการ` : '· ยังไม่มี'}</span>${fresh ? `<i>ใหม่ ${fresh}</i>` : '<span>›</span>'}</button>`;
+}
+
+// new-order alert: sound + vibrate + toast, whatever page is open
+const seenOrders = new Set();
+let ordersPrimed = false;
+function beep() {
+  try {
+    const ac = beep.ac ||= new (window.AudioContext || window.webkitAudioContext)();
+    [0, .22].forEach(t => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(.25, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + t + .18); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + .2); });
+  } catch {}
+}
+function watchNewOrders() {
+  const fresh = state.orders.filter(o => o.status === 'new' && !seenOrders.has(o.id));
+  fresh.forEach(o => seenOrders.add(o.id));
+  if (!ordersPrimed) { ordersPrimed = state.mode === 'cloud' && state.syncStatus === 'synced'; return; }
+  if (!fresh.length) return;
+  beep(); if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  toast(`💚 ออเดอร์ LINE ใหม่ ${fresh.map(o => o.no).join(', ')}`);
+}
+const orderById = id => state.orders.find(o => o.id === id);
+async function orderAction(id, action, msg, reason) {
+  try { await S.orderAction(id, action, reason); if (msg) toast(msg); } catch (e) { toast('อัปเดตไม่ได้: ' + e.message); }
+}
+
 // ---------- add / edit sheet ----------
 let draft = null;
 function openSheet(tx) {
@@ -937,6 +1037,7 @@ function viewSell() {
   const sales = todaySales();
   const total = cartTotal();
   return `${header('ขาย')}
+    ${lineBanner()}
     <p class="small muted sell-today">วันนี้ขายแล้ว <b>${sales.length}</b> บิล · <b class="num">${baht(sales.reduce((s, t) => s + amt(t), 0))}</b>
       ${sales.length ? `· <button class="link small" data-action="bills-toggle">${ui.showBills ? 'ซ่อนบิล' : 'ดูบิลวันนี้'}</button>` : ''}</p>
     <div class="seg sell-tabs">${[['all', 'ทั้งหมด'], ['fruit', S.MENU_GROUPS.fruit], ['drink', S.MENU_GROUPS.drink]].map(([k, l]) =>
@@ -1425,8 +1526,10 @@ function render() {
   const focusKey = active?.dataset?.input;
   app.innerHTML = onboarding ? viewOnboarding()
     : ui.view === 'stats' ? viewStats() : ui.view === 'scan' ? viewScan() : ui.view === 'settings' ? viewSettings()
-    : ui.view === 'sell' ? viewSell() : ui.view === 'record' ? viewRecord() : viewHome();
-  const navKey = ui.view === 'scan' ? 'record' : ui.view;
+    : ui.view === 'sell' ? viewSell() : ui.view === 'orders' ? viewOrders() : ui.view === 'record' ? viewRecord() : viewHome();
+  const navKey = ui.view === 'scan' ? 'record' : ui.view === 'orders' ? 'sell' : ui.view;
+  const sellTab = document.querySelector('.tabbar [data-nav="sell"]');
+  if (sellTab) { const n = newOrderCount(); n ? sellTab.dataset.badge = n : delete sellTab.dataset.badge; }
   document.querySelectorAll('.tabbar [data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === navKey));
   document.body.classList.toggle('has-cart', ui.view === 'sell' && ui.cart.length > 0);
   bindColumnTips(app);
@@ -1470,6 +1573,32 @@ document.addEventListener('click', async e => {
     case 'pay-method': ui.pay.method = el.dataset.m; return renderPaySheet();
     case 'pay-quick': ui.pay.received = el.dataset.v; return renderPaySheet();
     case 'pay-confirm': return confirmSale();
+    // --- LINE OA orders ---
+    case 'orders-open': return go('orders');
+    case 'line-open': saveLine({ open: !!el.dataset.v }); return toast(el.dataset.v ? 'เปิดรับออเดอร์ LINE แล้ว 🟢' : 'ปิดรับออเดอร์ LINE แล้ว');
+    case 'line-save': {
+      const v = k => $(`[data-line="${k}"]`)?.value ?? '';
+      if (!v('from') || !v('to') || v('from') >= v('to')) return toast('เวลาเปิดต้องก่อนเวลาปิด');
+      saveLine({ from: v('from'), to: v('to'), prep: Math.max(0, Number(v('prep')) || 0), stampGoal: Math.max(1, Number(v('stampGoal')) || 10), note: v('note').trim(), name: v('name').trim() });
+      return toast('บันทึกการตั้งค่า LINE แล้ว');
+    }
+    case 'ord-status': return orderAction(el.dataset.id, el.dataset.s, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
+    case 'ord-paid': {
+      const o = orderById(el.dataset.id);
+      if (!o || !confirm(`เช็กแล้วว่าเงิน ${baht(o.total)} ของ ${o.no} เข้าบัญชีร้าน?`)) return;
+      return orderAction(o.id, 'paid', `${o.no} ชำระแล้ว ✅`);
+    }
+    case 'ord-cash': {
+      const o = orderById(el.dataset.id); if (!o) return;
+      return orderAction(o.id, 'cash', `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
+    }
+    case 'ord-done': return orderAction(el.dataset.id, 'done', 'ส่งมอบแล้ว · บันทึกยอดขายแล้ว 🥤');
+    case 'ord-cancel': {
+      const o = orderById(el.dataset.id); if (!o) return;
+      const reason = prompt(`ยกเลิก ${o.no}? ใส่เหตุผลถึงลูกค้า (เช่น วัตถุดิบหมด)`, '');
+      if (reason === null) return;
+      return orderAction(o.id, 'cancel', `ยกเลิก ${o.no} แล้ว`, reason.trim().slice(0, 120));
+    }
     case 'pp-save': {
       const v = $('[data-input="ppid"]').value.trim();
       if (v && !PP.normalizeId(v)) return toast('เลขไม่ถูกต้อง ใช้เบอร์มือถือ 10 หลัก หรือเลข 13 หลัก');
@@ -1564,6 +1693,8 @@ document.addEventListener('click', async e => {
       return;
     }
     case 'signout': if (confirm('ออกจากระบบในเครื่องนี้?')) await S.signOut(); return;
+    case 'line-login': return lineLogin();
+    case 'line-copy': try { await navigator.clipboard.writeText(ui.lineDenied.id); toast('คัดลอกแล้ว'); } catch { toast(ui.lineDenied.id); } return;
     case 'signout-now': await S.signOut(); return;
     case 'gate-recheck':
       ui.gateMsg = 'กำลังตรวจสอบ…'; render();
@@ -1785,6 +1916,17 @@ document.addEventListener('change', async e => {
 // close sheet when tapping the backdrop
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); });
 
+// ---------- sign in with LINE ----------
+async function lineLogin() {
+  ui.authBusy = true; ui.authError = ''; ui.lineDenied = null; render();
+  try { await S.signInLine(); }
+  catch (e) {
+    if (e.lineUserId) ui.lineDenied = { id: e.lineUserId, name: e.lineName };
+    else ui.authError = e.message;
+  }
+  ui.authBusy = false; render();
+}
+
 // ---------- boot ----------
 applyTheme();
 setModelChangeHandler(m => {
@@ -1798,11 +1940,12 @@ Sheet.onSheetChange(() => { if (ui.view === 'settings') render(); });
 S.subscribe(() => {
   // a key saved only on this device (older version) is shared to the account once it is synced
   if (prefs.geminiKey && state.mode === 'cloud' && state.syncStatus === 'synced' && !state.settings.geminiKey) S.saveSettings({ geminiKey: prefs.geminiKey });
+  watchNewOrders();
   render(); Sheet.schedule();
   if (state.mode === 'cloud' && state.syncStatus === 'synced' && sessionStorage.getItem?.('jj_connect')) setTimeout(takeConnectLink, 0);
 });
 render();
-S.initStore();
+S.initStore().then(() => { if (S.lineLoginPending()) lineLogin(); });
 takeSharedFiles();
 takeConnectLink();
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('sw.js').catch(() => {});

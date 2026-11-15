@@ -17,3 +17,7 @@ export const ownerUid = "";
 // true = ใช้ได้เฉพาะเจ้าของร้าน (เฟส 3 จะเพิ่มลูกจ้างพร้อมระบบอนุมัติ)
 export const privateApp = true;
 export const inviteOnly = false;
+// ระบบสั่งผ่าน LINE OA: URL ของ Cloudflare Worker (ได้หลัง deploy โฟลเดอร์ worker/) เช่น https://jukjik-kaa-line.<ชื่อบัญชี>.workers.dev
+export const lineApi = "https://jukjik-kaa-line.jukjik-kaa.workers.dev";
+// ล็อกอินแอปร้านด้วย LINE: LIFF app ที่ Endpoint URL = หน้าแอปนี้ (ดู README ขั้นที่ 5.4)
+export const ownerLiffId = "";
