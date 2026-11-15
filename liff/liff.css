@@ -25,3 +25,8 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .pay-steps { margin: 4px 0 12px; padding-left: 20px; color: var(--text-2); }
 .pay-steps li { margin: 2px 0; }
 .btn-col .link { justify-self: center; }
+.fulfil-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fulfil-btn { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.fulfil-btn span { font-size: 1.4rem; }
+.fulfil-btn[aria-selected="true"] { border-color: var(--accent); background: var(--surface-2); font-weight: 600; }
+.save-qr { width: 100%; margin: 4px 0 10px; }

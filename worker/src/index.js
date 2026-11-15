@@ -33,7 +33,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
 
   // ---------- messages ----------
   const itemsText = o => o.items.map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
-  const pickupText = o => o.pickup?.mode === 'later' ? `นัดรับ ${o.pickup.at} น.` : `รับได้ประมาณ ${o.pickup?.at || ''} น.`;
+  const pickupText = o => `${o.pickup?.mode === 'later' ? `นัด ${o.pickup.at} น.` : `ประมาณ ${o.pickup?.at || ''} น.`} · ${Shop.fulfilText(o.fulfil || { mode: 'pickup' })}`;
   const payText = o => o.paid ? 'ชำระแล้ว ✅' : o.payMethod === 'promptpay' ? (o.payClaimed ? 'แจ้งโอนแล้ว รอร้านตรวจ' : 'พร้อมเพย์ (ยังไม่ได้โอน)') : 'จ่ายเงินสดตอนรับ';
   function orderBubble(id, o, title) {
     const row = (k, v, bold) => ({ type: 'box', layout: 'baseline', spacing: 'sm', contents: [
@@ -55,7 +55,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   async function menu() {
     const { settings, cfg, menu, name } = await loadShop();
     const now = Shop.bkk();
-    return { shop: { name, open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
+    return { shop: { name, modes: Shop.fulfilModes(cfg), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
       now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to) }, menu: Shop.publicMenu(menu) };
   }
 
@@ -64,6 +64,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const now = Shop.bkk();
     const pickup = Shop.checkPickup(cfg, body?.pickup, now);
     const priced = Shop.priceCart(menu, body?.items);
+    const fulfil = Shop.checkFulfil(cfg, body?.fulfil);
     const payMethod = body?.payMethod === 'promptpay' ? 'promptpay' : body?.payMethod === 'cash' ? 'cash' : null;
     if (!payMethod) throw new Shop.OrderError('เลือกวิธีชำระเงิน');
     if (payMethod === 'promptpay' && !settings.promptpay) throw new Shop.OrderError('ร้านยังไม่เปิดรับพร้อมเพย์ เลือกเงินสดตอนรับ', 409);
@@ -75,7 +76,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const n = Number(res.transformResults?.[0]?.integerValue) || 1;
     const id = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
     const o = { no: Shop.orderNo(n), day: now.day, status: 'new', lineUserId: who.id, displayName: who.name, ...priced, payMethod,
-      paid: false, payClaimed: false, pickup, note: String(body?.note || '').slice(0, 120), createdAt: Date.now(), updatedAt: Date.now() };
+      paid: false, payClaimed: false, pickup, fulfil, note: String(body?.note || '').slice(0, 120), createdAt: Date.now(), updatedAt: Date.now() };
     await db.commit([db.create(`${shop}/orders/${id}`, o)]);
     return Shop.publicOrder(id, o, settings);
   }
@@ -145,7 +146,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     });
     // customer messages (push counts against the OA's monthly quota: only these two)
     if (action === 'ready') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
-      text: `☕ คิว ${after.no} พร้อมรับแล้ว!\n${itemsText(after)}\n${after.paid ? 'ชำระแล้ว ✅' : `ยอด ${baht(after.total)} · ${payText(after)}`}` }] }).catch(e => console.error(e));
+      text: `${Shop.readyText(after)}\n${itemsText(after)}\n${after.paid ? 'ชำระแล้ว ✅' : `ยอด ${baht(after.total)} · ${payText(after)}`}` }] }).catch(e => console.error(e));
     if (action === 'cancel') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
       text: `ขออภัย ร้านยกเลิกคิว ${after.no}${after.cancelReason ? `\nเหตุผล: ${after.cancelReason}` : ''}${after.payClaimed || after.paid ? '\nร้านจะติดต่อเรื่องคืนเงินทางแชทนี้' : ''}` }] }).catch(e => console.error(e));
     return { ok: true, status: after.status, paid: after.paid };

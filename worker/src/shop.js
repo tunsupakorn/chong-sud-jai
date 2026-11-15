@@ -84,7 +84,7 @@ export const orderNo = n => 'L' + String(n).padStart(3, '0');
 // The order as the customer sees it (no cost, no internal fields).
 export function publicOrder(id, o, shop = {}) {
   return { id, no: o.no, status: o.status, items: (o.items || []).map(({ cost, ...i }) => i), cups: o.cups, total: o.total,
-    payMethod: o.payMethod, paid: !!o.paid, payClaimed: !!o.payClaimed, hasSlip: !!o.hasSlip, pickup: o.pickup, day: o.day, createdAt: o.createdAt,
+    payMethod: o.payMethod, paid: !!o.paid, payClaimed: !!o.payClaimed, hasSlip: !!o.hasSlip, pickup: o.pickup, fulfil: o.fulfil || { mode: 'pickup' }, day: o.day, createdAt: o.createdAt,
     ...(o.payMethod === 'promptpay' && !o.paid && shop.promptpay ? { promptpay: shop.promptpay } : {}) };
 }
 
@@ -125,3 +125,32 @@ export function checkSlip(body) {
   if (ref && !/^[0-9]{3}:[A-Za-z0-9]{6,60}$/.test(ref)) throw new OrderError('ข้อมูล QR บนสลิปไม่ถูกต้อง');
   return { image, ref };
 }
+
+// ---- how the customer receives the order ----
+export const FULFIL = {
+  pickup: { label: 'มารับเองที่ร้าน', emoji: '🛍️' },
+  dinein: { label: 'นั่งทานที่ร้าน', emoji: '🪑' },
+  curbside: { label: 'รับหน้าร้าน', emoji: '🚗' },
+  delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵' },
+};
+export const fulfilModes = cfg => (Array.isArray(cfg.modes) && cfg.modes.length ? cfg.modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
+export function checkFulfil(cfg, f) {
+  const modes = fulfilModes(cfg);
+  const mode = f?.mode || modes[0];
+  if (!modes.includes(mode)) throw new OrderError('ร้านไม่ได้เปิดวิธีรับแบบนี้', 409);
+  const detail = String(f?.detail || '').trim().slice(0, 200);
+  const phone = String(f?.phone || '').replace(/\D/g, '').slice(0, 10);
+  if (mode === 'delivery') {
+    if (detail.length < 5) throw new OrderError('ใส่ที่อยู่สำหรับจัดส่ง');
+    if (!/^0\d{8,9}$/.test(phone)) throw new OrderError('ใส่เบอร์โทรสำหรับติดต่อ');
+  }
+  if (mode === 'curbside' && !detail) throw new OrderError('บอกร้านหน่อยว่ารอตรงไหน เช่น ทะเบียนรถ/สีรถ');
+  return { mode, ...(detail ? { detail } : {}), ...(phone ? { phone } : {}) };
+}
+export const fulfilText = f => f ? `${FULFIL[f.mode]?.emoji || ''} ${FULFIL[f.mode]?.label || f.mode}${f.detail ? ` · ${f.detail}` : ''}` : '';
+// what "ready" means for the customer
+export const readyText = (o) => ({
+  delivery: `🛵 คิว ${o.no} กำลังออกไปส่งแล้ว`,
+  dinein: `☕ คิว ${o.no} พร้อมเสิร์ฟแล้ว`,
+  curbside: `🚗 คิว ${o.no} พร้อมแล้ว ร้านกำลังเดินไปส่ง${o.fulfil?.detail ? ` (${o.fulfil.detail})` : ''}`,
+}[o.fulfil?.mode] || `☕ คิว ${o.no} พร้อมรับแล้ว!`);
