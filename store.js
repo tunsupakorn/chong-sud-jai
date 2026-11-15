@@ -272,7 +272,22 @@ export async function saveMany(list) {
   return items.length;
 }
 
+// slip photos: one doc per transaction in users/{uid}/slips/{txId}, kept apart so the tx list stays light
+export async function saveSlipImage(id, data) {
+  if (state.mode === 'cloud') return fb.F.setDoc(fb.F.doc(...userPath('slips', id)), { data, at: Date.now() });
+  try { localStorage.setItem('jj_slip_' + id, data); } catch { throw new Error('ที่เก็บในเครื่องเต็ม'); }
+}
+export async function getSlipImage(id) {
+  if (state.mode === 'cloud') { const snap = await fb.F.getDoc(fb.F.doc(...userPath('slips', id))); return snap.exists() ? snap.data().data : ''; }
+  return localStorage.getItem('jj_slip_' + id) || '';
+}
+export function deleteSlipImage(id) {
+  if (state.mode === 'cloud') fb.F.deleteDoc(fb.F.doc(...userPath('slips', id))).catch(() => {});
+  else localStorage.removeItem('jj_slip_' + id);
+}
+
 export function deleteTx(id) {
+  if (state.tx.find(x => x.id === id)?.hasSlip) deleteSlipImage(id);
   if (state.mode === 'cloud') fb.F.deleteDoc(fb.F.doc(...userPath('tx', id))).catch(syncFail);
   else { state.tx = state.tx.filter(t => t.id !== id); writeLocal(); }
 }

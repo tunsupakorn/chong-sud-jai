@@ -82,7 +82,7 @@ function txRow(t) {
   return `<li><button class="tx" data-action="edit" data-id="${esc(t.id)}">
     <span class="bubble" aria-hidden="true">${c.emoji}</span>
     <span class="tx-main"><b>${esc(c.name)}</b><small>${esc(sub || METHODS[t.method] || '')}</small></span>
-    <span class="tx-amt num ${t.type}">${t.slipUrl ? '<i class="clip" title="มีสลิปใน Drive">📎</i>' : ''}${SIGN[t.type] || ''}${baht(t.amount)}</span>
+    <span class="tx-amt num ${t.type}">${t.slipUrl || t.hasSlip ? '<i class="clip" title="มีสลิป">📎</i>' : ''}${SIGN[t.type] || ''}${baht(t.amount)}</span>
   </button></li>`;
 }
 
@@ -127,6 +127,44 @@ function viewOnboarding() {
   </section>`;
 }
 
+// ---------- เป้าคืนทุน ----------
+function paybackInfo() {
+  const all = money(state.tx);
+  const monthsActive = new Set(state.tx.filter(t => t.type === 'income').map(t => t.date.slice(0, 7))).size;
+  const avgNet = monthsActive ? all.net / monthsActive : 0;
+  const remain = Math.max(0, all.invest - all.net);
+  const p = all.invest > 0 ? Math.max(0, Math.min(1, all.net / all.invest)) : 0;
+  const goal = Number(state.settings.paybackGoal) || 12; // months
+  const perMonth = all.invest / goal;
+  return { all, avgNet, remain, p, goal, perMonth, monthsLeft: avgNet > 0 ? Math.ceil(remain / avgNet) : null };
+}
+const cheer = p => p >= 1 ? '🎉 คืนทุนแล้ว! จากนี้คือกำไรล้วน'
+  : p >= 0.75 ? '🚀 อีกนิดเดียว ใกล้คืนทุนแล้ว' : p >= 0.5 ? '🔥 มาได้ครึ่งทางแล้ว สู้ต่อ!'
+  : p >= 0.25 ? '💪 มาได้ 1 ใน 4 แล้ว ไปต่อ!' : p > 0 ? '🌱 เริ่มเก็บกำไรแล้ว ทุกแก้วคือก้าวต่อไป' : '☀️ เริ่มขายแก้วแรก แล้วดูหลอดนี้ขยับ';
+function goalCard() {
+  const g = paybackInfo();
+  if (!g.all.invest) return `<section class="card goal empty-goal"><h3>🏁 เป้าคืนทุน</h3>
+    <p class="small">ใส่ <b>เงินลงทุนเปิดร้าน</b> (เครื่องปั่น ตู้แช่ ตกแต่ง ป้าย มัดจำ) แล้วดูว่ากำไรแต่ละวันพาคืนทุนไปได้แค่ไหน</p>
+    <button class="btn primary" data-action="rec-new" data-g="invest">🛠️ ใส่เงินลงทุนเปิดร้าน</button></section>`;
+  const thisMonth = money(monthTx()).net;
+  return `<section class="card goal">
+    <div class="row between"><h3>🏁 เป้าคืนทุน</h3><b class="goal-pct num">${g.p > 0 && g.p < 0.1 ? (Math.floor(g.p * 1000) / 10).toFixed(1) : Math.floor(g.p * 100)}%</b></div>
+    <div class="meter goal-meter" role="progressbar" aria-valuenow="${Math.floor(g.p * 100)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${Math.max(g.p > 0 ? 2 : 0, g.p * 100)}%"></div>
+      ${[25, 50, 75].map(x => `<i style="left:${x}%" class="${g.p * 100 >= x ? 'on' : ''}"></i>`).join('')}</div>
+    <p class="goal-cheer">${cheer(g.p)}</p>
+    <div class="today-grid goal-grid">
+      <div><small>ลงทุนทั้งหมด</small><b class="num">${baht(g.all.invest)}</b></div>
+      <div><small>กำไรสะสม</small><b class="num ${g.all.net < 0 ? 'neg' : ''}">${signed(g.all.net)}</b></div>
+      <div><small>เหลืออีก</small><b class="num">${baht(g.remain)}</b></div>
+    </div>
+    ${g.p < 1 ? `<p class="small goal-plan">เป้า: คืนทุนใน <select data-input="pbgoal" aria-label="เป้ากี่เดือน">${[6, 9, 12, 18, 24, 36].map(n => `<option value="${n}" ${n === g.goal ? 'selected' : ''}>${n} เดือน</option>`).join('')}</select>
+      → ต้องกำไรเฉลี่ย <b class="num">${baht(Math.ceil(g.perMonth))}</b>/เดือน (≈ <b class="num">${baht(Math.ceil(g.perMonth / 30))}</b>/วัน)
+      · เดือนนี้ได้ <b class="num ${thisMonth < 0 ? 'neg' : ''}">${signed(thisMonth)}</b>
+      ${g.monthsLeft ? ` · ตามกำไรตอนนี้ คืนทุนในอีกประมาณ <b>${g.monthsLeft} เดือน</b>` : ''}</p>` : ''}
+    <button class="link small" data-action="rec-new" data-g="invest">＋ เพิ่มเงินลงทุน</button>
+  </section>`;
+}
+
 function viewHome() {
   const list = monthTx();
   const m = money(list);
@@ -162,6 +200,7 @@ function viewHome() {
       <p class="small muted today-foot">ยอดขายวันนี้ <b class="num">${baht(t.sales)}</b>${t.cups ? ` · ${t.cups} แก้ว` : ''} · จ่ายวันนี้ <b class="num">${baht(t.cogs + t.opex + t.invest)}</b></p>
       <button class="btn primary big" data-action="close-open" data-date="${today}">📒 ${closed ? 'แก้ไขยอดปิดวันนี้' : 'ปิดยอดวันนี้'}</button>
     </section>
+    ${goalCard()}
     ${list.length ? `<label class="search"><span aria-hidden="true">🔍</span><input type="search" placeholder="ค้นหารายการ" value="${esc(ui.search)}" data-input="search"></label>` : ''}
     ${Object.keys(groups).length ? Object.entries(groups).map(([d, items]) => {
       const dm = money(items);
@@ -776,7 +815,7 @@ function promptpayCard() {
     <p class="muted small">ใช้สร้าง QR พร้อมยอดเงินในหน้าขาย ลูกค้าสแกนแล้วยอดขึ้นเอง ไม่ต้องพิมพ์</p>
     <div class="row gap"><input inputmode="numeric" class="grow" placeholder="เบอร์มือถือ 10 หลัก หรือเลขบัตร 13 หลัก" value="${esc(id)}" data-input="ppid" autocomplete="off">
       <button class="btn primary sm" data-action="pp-save">บันทึก</button></div>
-    ${n ? `<p class="small">✅ ${n.label} ${PP.mask(id)} · <button class="link small" data-action="pp-test">ทดสอบ QR ฿1</button></p>` : '<p class="small muted">ยังไม่ได้ตั้ง — หน้าขายจะใช้แบบกดยืนยันรับเงินแทน</p>'}
+    ${n ? `<p class="small">✅ ${n.label} ${PP.mask(id)}</p><button class="btn ghost" data-action="pp-test">📲 แสดง QR ทดสอบ ฿1</button><p class="small muted">สแกนโอน ฿1 ด้วยแอปธนาคารของคุณเอง ดูว่าชื่อบัญชีเป็นของร้านก่อนใช้กับลูกค้า</p>` : '<p class="small muted">ยังไม่ได้ตั้ง — หน้าขายจะใช้แบบกดยืนยันรับเงินแทน</p>'}
     <div id="pp-preview" class="pp-qr" hidden></div>
   </section>`;
 }
@@ -1041,6 +1080,27 @@ const FORM = {
 const groupOfTx = t => t.type === 'transfer' ? 'owner' : t.type === 'income' ? 'income' : S.catGroup(catById(t.cat));
 const isoShift = n => { const d = new Date(); d.setDate(d.getDate() + n); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
+// slip photos are stored small (≈100–300 KB) so they sync through Firestore without Google Drive
+async function slipDataUrl(file) {
+  const bmp = await createImageBitmap(file);
+  for (const [side, q] of [[1400, 0.72], [1100, 0.62], [900, 0.55]]) {
+    const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', q);
+    if (url.length < 700000) return url;
+  }
+  throw new Error('รูปใหญ่เกินไป');
+}
+async function showSlipIn(el, id) {
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const url = await S.getSlipImage(id);
+    el.innerHTML = url ? `<img src="${url}" alt="สลิป" data-action="slip-zoom">` : '<p class="small muted">ไม่พบรูปสลิป (อาจยังซิงก์ไม่เสร็จ)</p>';
+  } catch (e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
 function openEntry(tx, group = 'cogs', dir = 'in') {
   if (tx?.source === 'pos') return openBillSheet(tx);
   if (tx) draft = { ...tx, group: groupOfTx(tx), dir: /ถอน/.test(tx.note || tx.merchant || '') ? 'out' : 'in' };
@@ -1079,23 +1139,34 @@ function renderEntry() {
     <input type="text" list="merchant-list" value="${esc(d.merchant || '')}" placeholder="${F.hint}" data-d="merchant" aria-label="รายละเอียด">
     <datalist id="merchant-list">${suggest.map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
     ${/^https:\/\/drive\.google\.com\//.test(d.slipUrl || '') ? `<a class="btn ghost sm" href="${esc(d.slipUrl)}" target="_blank" rel="noopener">📎 ดูสลิปใน Google Drive</a>` : ''}
+    ${d.group === 'owner' ? '' : `<div class="slip-attach">
+      ${d.slipData ? `<div class="slip-box"><img src="${d.slipData}" alt="สลิปที่แนบ" data-action="slip-zoom"></div>`
+        : d.hasSlip && !d.slipRemove ? `<div class="slip-box" id="slip-box"></div>` : ''}
+      <div class="row gap">
+        <label class="btn ghost sm grow"><input type="file" accept="image/*" data-input="slip" hidden>📎 ${d.slipData || (d.hasSlip && !d.slipRemove) ? 'เปลี่ยนรูปสลิป' : 'แนบสลิป / ใบเสร็จ'}</label>
+        ${d.slipData || (d.hasSlip && !d.slipRemove) ? '<button type="button" class="btn ghost sm" data-action="slip-remove">เอาออก</button>' : ''}
+      </div></div>`}
     <div class="row gap">
       ${d.id ? `<button type="button" class="btn danger" data-action="d-delete">ลบ</button>` : ''}
       <button type="submit" class="btn primary big grow">บันทึก</button>
     </div>
   </form>`;
+  const box = $('#slip-box'); if (box && draft.id) showSlipIn(box, draft.id);
 }
 function saveEntry() {
   const d = draft;
   const amount = Math.round((Number(d.amount) || 0) * 100) / 100;
   if (!(amount > 0)) return toast('ใส่จำนวนเงินก่อน');
   const ownerLabel = d.dir === 'out' ? 'เจ้าของถอนเงินไปใช้' : 'เจ้าของใส่เงินเข้าร้าน';
-  const { group, dir, ...rest } = d;
+  const { group, dir, slipData, slipRemove, ...rest } = d;
+  if (slipData) rest.hasSlip = true; else if (slipRemove) delete rest.hasSlip;
   const tx = { ...rest, amount,
     ...(group === 'owner' ? { type: 'transfer', cat: 'transfer', note: ownerLabel, merchant: d.merchant || ownerLabel } : {}),
     ...(group === 'income' ? { type: 'income' } : {}),
     ...(['cogs', 'opex', 'invest'].includes(group) ? { type: 'expense' } : {}) };
-  S.saveTx(tx);
+  const saved = S.saveTx(tx);
+  if (slipData) S.saveSlipImage(saved.id, slipData).catch(e => toast('❌ เก็บสลิปไม่สำเร็จ: ' + e.message));
+  else if (slipRemove) S.deleteSlipImage(saved.id);
   ui.month = d.date.slice(0, 7);
   $('#sheet').close();
   toast(d.id ? 'แก้ไขแล้ว' : `จดแล้ว · ${catById(tx.cat).name} ${baht(amount)}`);
@@ -1383,6 +1454,8 @@ document.addEventListener('click', async e => {
     // --- sell ---
     case 'sell-add': return tapMenu(el.dataset.id);
     case 'back': if (history.state?.v === 'scan') return history.back(); return go(el.dataset.to);
+    case 'slip-remove': draft.slipData = ''; draft.slipRemove = true; return renderEntry();
+    case 'slip-zoom': return el.classList.toggle('zoom');
     case 'top-by': ui.topBy = el.dataset.k; return render();
     case 'top-all': ui.topAll = !ui.topAll; return render();
     case 'sell-undo': cartUndo(el.dataset.id); return render();
@@ -1467,7 +1540,9 @@ document.addEventListener('click', async e => {
     case 'scan-save': {
       const chosen = ui.scan.items.filter(i => i.keep);
       const pairs = chosen.map(({ keep, dup, old, fileName, file, ...t }) => ({ tx: { ...t, id: t.id || S.newId() }, file }));
+      pairs.forEach(p => { if (p.file && /^image\//.test(p.file.type)) p.tx.hasSlip = true; });
       const n = await S.saveMany(pairs.map(p => p.tx));
+      (async () => { for (const p of pairs) if (p.tx.hasSlip) try { await S.saveSlipImage(p.tx.id, await slipDataUrl(p.file)); } catch (e) { console.warn('slip', e); } })();
       ui.scan.items = ui.scan.items.filter(i => !i.keep);
       toast(`บันทึก ${n} รายการแล้ว 🐣`);
       if (pairs[0]) ui.month = pairs[0].tx.date.slice(0, 7);
@@ -1683,6 +1758,14 @@ document.addEventListener('change', async e => {
       ui.scan.items.forEach(it => { if (!it.dup) it.keep = !(t.checked && it.old); });
       return render();
     case 'files': { const files = [...t.files]; t.value = ''; if (files.length) runScan(files); return; }
+    case 'pbgoal': S.saveSettings({ paybackGoal: Number(t.value) || 12 }); return;
+    case 'slip': {
+      const file = t.files[0]; t.value = '';
+      if (!file || !draft) return;
+      try { draft.slipData = await slipDataUrl(file); draft.slipRemove = false; renderEntry(); }
+      catch (err) { toast('❌ แนบรูปไม่ได้: ' + err.message); }
+      return;
+    }
     case 'pick': { const files = [...t.files]; t.value = ''; addToTray(files); return; }
     case 'import': {
       const file = t.files[0]; t.value = '';

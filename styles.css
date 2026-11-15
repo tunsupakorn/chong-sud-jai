@@ -442,3 +442,25 @@ details.more-settings section + section { margin-top: 14px; }
 .topmenu .cb-track { margin-left: 32px; }
 .topmenu small { margin-left: 32px; }
 .topmenu .neg { color: var(--expense); }
+
+/* ---- slip attach + QR box fix ---- */
+.pp-qr[hidden] { display: none; }
+.slip-attach { display: grid; gap: 8px; }
+.slip-box { display: grid; place-items: center; min-height: 60px; background: var(--surface-2); border-radius: 14px; padding: 8px; }
+.slip-box img { max-width: 100%; max-height: 220px; border-radius: 10px; cursor: zoom-in; }
+.slip-box img.zoom { max-height: none; cursor: zoom-out; }
+
+/* ---- payback goal ---- */
+.goal { display: grid; gap: 8px; }
+.goal h3 { margin: 0; }
+.goal-pct { font-family: var(--display); font-size: 1.6rem; color: var(--accent); }
+.goal-meter { position: relative; height: 16px; overflow: visible; }
+.goal-meter div { background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+.goal-meter i { position: absolute; top: -3px; width: 2px; height: 22px; background: var(--line); border-radius: 1px; }
+.goal-meter i.on { background: var(--accent-ink, #fff); opacity: .8; }
+.goal-cheer { margin: 0; font-weight: 600; }
+.goal-grid b { font-size: 1rem; }
+.goal-plan { margin: 0; line-height: 1.7; }
+.goal-plan select { font: inherit; padding: 2px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.goal .neg { color: var(--expense); }
+.empty-goal .btn { justify-self: start; }
