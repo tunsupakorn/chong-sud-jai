@@ -18,4 +18,4 @@ export const ownerUid = "";
 export const privateApp = true;
 export const inviteOnly = false;
 // ระบบสั่งผ่าน LINE OA: URL ของ Cloudflare Worker (ได้หลัง deploy โฟลเดอร์ worker/) เช่น https://jukjik-kaa-line.<ชื่อบัญชี>.workers.dev
-export const lineApi = "";
+export const lineApi = "https://jukjik-kaa-line.jukjik-kaa.workers.dev";
