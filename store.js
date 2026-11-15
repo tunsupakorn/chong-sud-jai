@@ -39,6 +39,29 @@ export const DEFAULT_CATEGORIES = [
   { id: 'deposit', name: 'มัดจำ/ค่าแรกเข้า', emoji: '🔑', type: 'expense', group: 'invest' },
   { id: 'invest_other', name: 'ลงทุนอื่นๆ', emoji: '🏗️', type: 'expense', group: 'invest' },
 ];
+// เมนูร้าน (แก้ได้ในตั้งค่า) · group: fruit = ปั่นผลไม้, drink = ชา/กาแฟ/นม, topping = ท็อปปิ้ง · cost = ต้นทุนประมาณ/แก้ว
+export const DEFAULT_MENU = [
+  { id: 'm_watermelon', name: 'แตงโมปั่น', emoji: '🍉', price: 35, cost: 12, group: 'fruit' },
+  { id: 'm_pineapple', name: 'สับปะรดปั่น', emoji: '🍍', price: 35, cost: 11, group: 'fruit' },
+  { id: 'm_mango', name: 'มะม่วงปั่น', emoji: '🥭', price: 45, cost: 17, group: 'fruit' },
+  { id: 'm_strawberry', name: 'สตรอว์เบอร์รีปั่น', emoji: '🍓', price: 45, cost: 18, group: 'fruit' },
+  { id: 'm_coconut', name: 'มะพร้าวปั่น', emoji: '🥥', price: 40, cost: 14, group: 'fruit' },
+  { id: 'm_banana', name: 'กล้วยนมปั่น', emoji: '🍌', price: 35, cost: 11, group: 'fruit' },
+  { id: 'm_yogurt', name: 'โยเกิร์ตผลไม้ปั่น', emoji: '🥣', price: 50, cost: 20, group: 'fruit' },
+  { id: 'm_smoothie', name: 'สมูทตี้รวมผลไม้', emoji: '🍹', price: 60, cost: 25, group: 'fruit' },
+  { id: 'm_thaitea', name: 'ชาไทยปั่น', emoji: '🧋', price: 35, cost: 12, group: 'drink' },
+  { id: 'm_greentea', name: 'ชาเขียวปั่น', emoji: '🍵', price: 40, cost: 14, group: 'drink' },
+  { id: 'm_cocoa', name: 'โกโก้ปั่น', emoji: '🍫', price: 35, cost: 12, group: 'drink' },
+  { id: 'm_coffee', name: 'กาแฟปั่น', emoji: '☕', price: 45, cost: 16, group: 'drink' },
+  { id: 'm_milk', name: 'นมสดปั่น', emoji: '🥛', price: 30, cost: 10, group: 'drink' },
+  { id: 'm_ovaltine', name: 'โอวัลตินปั่น', emoji: '🥤', price: 35, cost: 12, group: 'drink' },
+  { id: 'm_honeylime', name: 'น้ำผึ้งมะนาวโซดา', emoji: '🍋', price: 25, cost: 8, group: 'drink' },
+  { id: 't_pearl', name: 'ไข่มุก', emoji: '⚫', price: 10, cost: 3, group: 'topping' },
+  { id: 't_konjac', name: 'บุก', emoji: '⚪', price: 10, cost: 3, group: 'topping' },
+  { id: 't_whip', name: 'วิปครีม', emoji: '🍦', price: 5, cost: 2, group: 'topping' },
+];
+export const MENU_GROUPS = { fruit: '🍓 ปั่นผลไม้', drink: '🧋 ชา·กาแฟ·นม', topping: '✨ ท็อปปิ้ง' };
+
 export const GROUPS = {
   income: { name: 'รายรับ', emoji: '💰' },
   cogs: { name: 'ต้นทุนสินค้า', emoji: '🧊', hint: 'วัตถุดิบและบรรจุภัณฑ์ (คิดกำไรขั้นต้น)' },
