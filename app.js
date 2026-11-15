@@ -834,7 +834,7 @@ async function showQR(el, amount) {
 
 // ==================== LINE OA: ออเดอร์จากลูกค้า ====================
 const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(state.settings.line || {}) });
-const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', dinein: '🪑 นั่งทานที่ร้าน', curbside: '🚗 รับหน้าร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
+const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
 const lineModes = () => (Array.isArray(lineCfg().modes) && lineCfg().modes.length ? lineCfg().modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
 const ORDER_STATUS = { new: '🆕 ออเดอร์ใหม่', accepted: '🧑‍🍳 กำลังทำ', ready: '☕ รอลูกค้ารับ' };
 const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':').map(Number); return h * 60 + m; };

@@ -129,8 +129,6 @@ export function checkSlip(body) {
 // ---- how the customer receives the order ----
 export const FULFIL = {
   pickup: { label: 'มารับเองที่ร้าน', emoji: '🛍️' },
-  dinein: { label: 'นั่งทานที่ร้าน', emoji: '🪑' },
-  curbside: { label: 'รับหน้าร้าน', emoji: '🚗' },
   delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵' },
 };
 export const fulfilModes = cfg => (Array.isArray(cfg.modes) && cfg.modes.length ? cfg.modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
