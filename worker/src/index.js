@@ -8,6 +8,7 @@ import * as Shop from './shop.js';
 import { Firestore, withRetry } from './firestore.js';
 import { googleToken, verifyFirebaseToken, firebaseCustomToken } from './auth.js';
 import { validSignature, lineApi, verifyLiffToken } from './line.js';
+import { payload as ppPayload, qrPng } from './qrpng.js';
 
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
 const baht = n => '฿' + Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
@@ -208,6 +209,17 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const send = (d, s) => json(d, s, cors);
     try {
       if (req.method === 'GET' && parts[0] === 'menu') return send(await menu());
+      // PromptPay QR of an unpaid order as a real image file: the LINE in-app browser hands this link to Chrome/Safari to save
+      if (req.method === 'GET' && parts[0] === 'qr' && /^[A-Za-z0-9]{1,40}\.png$/.test(parts[1] || '')) {
+        const id = parts[1].slice(0, -4);
+        const [doc, { settings }] = await Promise.all([db.get(`${shop}/orders/${id}`), loadShop()]);
+        const o = doc?.data;
+        if (!o || o.payMethod !== 'promptpay' || o.paid || !Shop.OPEN_STATUSES.includes(o.status) || !settings.promptpay)
+          return new Response('QR นี้ใช้ไม่ได้แล้ว', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+        const png = await qrPng(ppPayload(settings.promptpay, o.total));
+        return new Response(png, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store',
+          ...(url.searchParams.get('dl') ? { 'Content-Disposition': `attachment; filename="QR-${o.no}-${o.total}THB.png"` } : {}) } });
+      }
       // POS sign-in with LINE: a LINE account on OWNER_LINE_IDS gets a Firebase custom token (claim lineOwner)
       if (req.method === 'POST' && parts[0] === 'auth' && parts[1] === 'line') {
         const body = await req.json().catch(() => ({}));

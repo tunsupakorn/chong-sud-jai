@@ -1136,12 +1136,15 @@ function openBillSheet(tx) {
   $('#sheet').innerHTML = `<div class="sheet-body">
     <div class="grab" aria-hidden="true"></div>
     <div class="row between"><h2>🧾 บิล ${esc(tx.time || '')}</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
-    <p class="small muted">${dayLabel(tx.date)} · ${METHODS[tx.method] || ''}${tx.received ? ` · รับ ${baht(tx.received)} ทอน ${baht(tx.change || 0)}` : ''}</p>
+    <p class="small muted">${dayLabel(tx.date)} · ${METHODS[tx.method] || ''}${tx.received ? ` · รับ ${baht(tx.received)} ทอน ${baht(tx.change || 0)}` : ''}${tx.channel === 'line' ? ` · 💚 LINE ${esc(tx.orderNo || '')}` : ''}</p>
     <ul class="cart-lines">${(tx.items || []).map(i => `<li><span>${esc(i.name)}</span><span>×${i.qty}</span><b class="num">${baht(i.price * i.qty)}</b></li>`).join('')}</ul>
     <div class="close-total"><span>รวม</span><b class="num">${baht(tx.amount)}</b></div>
+    ${tx.hasSlip ? `<div><small class="muted">🧾 สลิป${tx.qrRef ? ' · ✓ อ่าน QR บนสลิปได้' : ''}</small><div class="slip-box" id="bill-slip"></div></div>`
+      : tx.method === 'promptpay' && tx.channel === 'line' ? '<p class="small muted">ลูกค้าไม่ได้แนบสลิป</p>' : ''}
     <button class="btn danger" data-action="bill-void">ยกเลิกบิลนี้</button>
   </div>`;
   if (!$('#sheet').open) $('#sheet').showModal();
+  if (tx.hasSlip) showSlipIn($('#bill-slip'), tx.id);
 }
 
 // ==================== หน้า "จด" ====================
