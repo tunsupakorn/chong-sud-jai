@@ -17,7 +17,7 @@ setGlobalOptions({ region: 'asia-southeast1', maxInstances: 5 });
 
 // ---- configuration (set in functions/.env, secrets via `firebase functions:secrets:set`) ----
 const LINE_CHANNEL_SECRET = defineSecret('LINE_CHANNEL_SECRET');
-const LINE_CHANNEL_ACCESS_TOKEN = defineSecret('LINE_CHANNEL_ACCESS_TOKEN');
+const LINE_CHANNEL_ID = defineString('LINE_CHANNEL_ID', { description: 'Channel ID of the Messaging API channel' });
 const SHOP_UID = defineString('SHOP_UID', { default: '6aNH4DgIqSfQA9KbOWVcwLc3Jzn1' });
 const LOGIN_CHANNEL_ID = defineString('LINE_LOGIN_CHANNEL_ID', { description: 'Channel ID of the LINE Login channel that owns the LIFF app' });
 const LIFF_ID = defineString('LIFF_ID', { description: 'LIFF app id, e.g. 2001234567-AbCdEfGh' });
@@ -42,10 +42,25 @@ export function validSignature(rawBody, signature, secret) {
   return got.length === expected.length && timingSafeEqual(got, expected);
 }
 
+// Stateless channel access token (valid 15 min) issued from the channel ID + secret, so no long-lived token has to be stored.
+let token = { value: '', until: 0 };
+async function accessToken() {
+  if (token.value && Date.now() < token.until) return token.value;
+  const res = await fetch('https://api.line.me/oauth2/v3/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: LINE_CHANNEL_ID.value(), client_secret: LINE_CHANNEL_SECRET.value() }),
+  });
+  if (!res.ok) throw new Error(`LINE token ${res.status}: ${await res.text()}`);
+  const d = await res.json();
+  token = { value: d.access_token, until: Date.now() + (Number(d.expires_in) || 900) * 1000 - 60e3 };
+  return token.value;
+}
+
 async function lineApi(path, body) {
   const res = await fetch(`https://api.line.me/v2/bot/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN.value()}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await accessToken()}` },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`LINE ${path} ${res.status}: ${await res.text()}`);
@@ -245,7 +260,7 @@ async function handleEvent(ev) {
   // anything else: leave it for the shop to answer in LINE OA Manager chat
 }
 
-export const webhook = onRequest({ secrets: [LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN], invoker: 'public' }, async (req, res) => {
+export const webhook = onRequest({ secrets: [LINE_CHANNEL_SECRET], invoker: 'public' }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('');
   if (!validSignature(req.rawBody, req.get('x-line-signature'), LINE_CHANNEL_SECRET.value())) return res.status(401).send('bad signature');
   const events = req.body?.events || [];
@@ -261,7 +276,7 @@ export function saleFromOrder(id, o, hm) {
     items: o.items, createdAt: Date.now(), updatedAt: Date.now() };
 }
 
-export const onOrderUpdated = onDocumentUpdated({ document: 'users/{uid}/orders/{orderId}', secrets: [LINE_CHANNEL_ACCESS_TOKEN] }, async event => {
+export const onOrderUpdated = onDocumentUpdated({ document: 'users/{uid}/orders/{orderId}', secrets: [LINE_CHANNEL_SECRET] }, async event => {
   if (event.params.uid !== SHOP_UID.value()) return;
   const before = event.data.before.data(), after = event.data.after.data(), id = event.params.orderId;
 

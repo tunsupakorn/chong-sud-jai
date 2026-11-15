@@ -92,7 +92,7 @@ LINE Platform ── webhook ─────────────────
 2. ตั้งค่า › **Messaging API** › เปิดใช้งาน (สร้าง Provider ใหม่ชื่อร้าน)
 3. **developers.line.biz** › เลือก Provider › channel Messaging API:
    - แท็บ Basic settings: คัดลอก **Channel secret**
-   - แท็บ Messaging API: กด Issue **Channel access token (long-lived)** แล้วคัดลอก
+   - คัดลอก **Channel ID** ด้วย (ระบบออก access token อายุสั้นเองจาก ID + secret ไม่ต้อง issue long-lived token)
 4. Provider เดียวกัน › **Create a new channel › LINE Login** (ประเภท Web app) › คัดลอก **Channel ID**
 5. ใน LINE Login channel › แท็บ **LIFF** › Add:
    - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/jukjik-kaa/liff/index.html`
@@ -103,9 +103,8 @@ LINE Platform ── webhook ─────────────────
 1. Firebase Console › ⚙️ › Usage and billing › เปลี่ยนเป็น **Blaze** › ตั้ง **Budget alert** (เช่น ฿50/เดือน)
    ร้านเดียวใช้ไม่เกินโควตาฟรีของ Cloud Functions แทบแน่นอน
 2. บนคอม: `npm i -g firebase-tools` › `firebase login` › ในโฟลเดอร์ repo: `firebase use jukjik-kaa-4fae`
-3. `cp functions/.env.example functions/.env` แล้วใส่ `LINE_LOGIN_CHANNEL_ID` และ `LIFF_ID` (ไฟล์นี้ไม่ใช่ความลับ commit ได้)
-4. ใส่ค่าลับ (**ห้ามใส่ในไฟล์ใน repo เพราะ repo เป็น public**):
-   `firebase functions:secrets:set LINE_CHANNEL_SECRET` และ `firebase functions:secrets:set LINE_CHANNEL_ACCESS_TOKEN`
+3. `cp functions/.env.example functions/.env` แล้วใส่ `LINE_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_ID` และ `LIFF_ID` (ไฟล์นี้ไม่ใช่ความลับ commit ได้)
+4. ใส่ค่าลับ (**ห้ามใส่ในไฟล์ใน repo เพราะ repo เป็น public**): `firebase functions:secrets:set LINE_CHANNEL_SECRET`
 5. `cd functions && npm install && npm test && cd ..` › `firebase deploy --only functions,firestore:indexes`
 6. จะได้ URL 2 ตัว:
    - `…/webhook` › ใส่ใน Messaging API channel › **Webhook URL** › Verify › เปิด **Use webhook**
