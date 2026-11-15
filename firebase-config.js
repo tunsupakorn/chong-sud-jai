@@ -9,8 +9,8 @@ export const firebaseConfig = {
   appId: "1:919289249687:web:bdbfdd69e08cbd0aef0ed2"
 };
 
-// เจ้าของร้าน (ใส่ uid หลังล็อกอินครั้งแรก)
-export const ownerUid = "";
+// เจ้าของร้าน: tun.supakorn1993 (Gmail)
+export const ownerUid = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1";
 // true = ใช้ได้เฉพาะเจ้าของร้าน (เฟส 3 จะเพิ่มลูกจ้างพร้อมระบบอนุมัติ)
 export const privateApp = true;
 export const inviteOnly = false;

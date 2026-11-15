@@ -393,7 +393,7 @@ function viewGate() {
     return `<section class="onboard gate">
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔒</span></div>
       <h2>แอปส่วนตัว</h2>
-      <p>จุกจิกนี้ใช้ได้เฉพาะบัญชีของเจ้าของเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email}</b></p>
+      <p>แอปนี้ใช้ได้เฉพาะบัญชีของเจ้าของร้านเท่านั้น<br>ตอนนี้ล็อกอินอยู่ด้วย <b>${email}</b></p>
       <button class="btn primary big" data-action="signout-now">ออกจากระบบ แล้วล็อกอินบัญชีเจ้าของ</button>
     </section>`;
   }
