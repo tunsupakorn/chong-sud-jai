@@ -430,3 +430,15 @@ details.more-settings section + section { margin-top: 14px; }
 .style-prices .lbl { min-width: 0; }
 
 .back-btn { flex: none; font-size: 1.6rem; display: grid; place-items: center; padding: 0 0 3px; }
+
+/* ---- sell-page report ---- */
+.tile small + small { display: block; margin-top: 2px; }
+.topmenu { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
+.topmenu li { display: grid; gap: 4px; }
+.tm-head { display: flex; align-items: center; gap: 8px; }
+.tm-rank { width: 24px; height: 24px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; font-size: .8rem; flex: none; }
+.topmenu li:nth-child(-n+3) .tm-rank { background: var(--accent); color: var(--accent-ink); }
+.tm-name { flex: 1; min-width: 0; }
+.topmenu .cb-track { margin-left: 32px; }
+.topmenu small { margin-left: 32px; }
+.topmenu .neg { color: var(--expense); }

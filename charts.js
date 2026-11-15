@@ -23,11 +23,12 @@ export function categoryBars(rows, fmt, kind) {
 }
 
 // values: number per day; labels: tooltip label per day
-export function dailyColumns(values, labels, fmt, kind) {
+// xTicks (optional): [{ i, label }] for the x axis; default = day numbers 1, 8, 15, 22, last
+export function dailyColumns(values, labels, fmt, kind, xTicks) {
   const top = niceMax(Math.max(0, ...values));
   const short = n => n >= 1000 ? (n / 1000).toLocaleString('th-TH', { maximumFractionDigits: 1 }) + 'k' : String(n);
   const n = values.length;
-  const ticks = [1, 8, 15, 22, n];
+  const ticks = xTicks || [1, 8, 15, 22, n].map(t => ({ i: t - 1, label: String(t) }));
   return `<div class="cols ${kind}">
     <div class="cols-plot">
       <div class="cols-grid" aria-hidden="true">
@@ -41,7 +42,7 @@ export function dailyColumns(values, labels, fmt, kind) {
       </div>
       <div class="tip" hidden></div>
     </div>
-    <div class="cols-x" aria-hidden="true">${ticks.map(t => `<span style="left:${(t - 0.5) / n * 100}%">${t}</span>`).join('')}</div>
+    <div class="cols-x" aria-hidden="true">${ticks.map(t => `<span style="left:${(t.i + 0.5) / n * 100}%">${esc(t.label)}</span>`).join('')}</div>
   </div>`;
 }
 

@@ -178,6 +178,64 @@ function viewHome() {
       </section>`}`;
 }
 
+// ---------- รายงานจากหน้าขาย: เมนูขายดี กำไรต่อเมนู ช่วงเวลา ยอดต่อบิล ----------
+function posReport(list) {
+  const bills = list.filter(t => t.source === 'pos');
+  if (!bills.length) return `<section class="card"><h3>🛒 รายงานจากหน้าขาย</h3>
+    <p class="muted small">ยังไม่มีบิลจากหน้าขายในเดือนนี้ · เมื่อขายผ่าน 🛒 ขาย จะเห็นเมนูขายดี กำไรต่อเมนู และช่วงเวลาขายดีที่นี่</p></section>`;
+  const sales = bills.reduce((s, t) => s + amt(t), 0);
+  const days = new Set(bills.map(t => t.date)).size;
+  const cups = bills.reduce((s, t) => s + (Number(t.cups) || 0), 0);
+  // items: grouped by menu + style (e.g. ชาไทย เย็น)
+  const byItem = {};
+  for (const t of bills) for (const i of t.items || []) {
+    const key = `${i.id}|${i.style || ''}`;
+    const m = menuItem(i.id);
+    const r = byItem[key] ||= { name: i.name, emoji: m?.emoji || '🥤', topping: m?.group === 'topping', qty: 0, sales: 0, cost: 0 };
+    r.qty += Number(i.qty) || 0;
+    r.sales += (Number(i.price) || 0) * (Number(i.qty) || 0);
+    r.cost += (Number(i.cost) || 0) * (Number(i.qty) || 0);
+  }
+  const by = ui.topBy || 'qty';
+  const rows = Object.values(byItem).map(r => ({ ...r, profit: r.sales - r.cost, margin: r.sales ? (r.sales - r.cost) / r.sales : 0 }))
+    .sort((a, b) => b[by] - a[by] || b.sales - a.sales);
+  const max = Math.max(1, ...rows.map(r => Math.max(0, r[by])));
+  const noCost = rows.some(r => !r.cost);
+  const fmt = (v, r) => by === 'qty' ? `${nf.format(v)} ${r.topping ? 'ที่' : 'แก้ว'}` : baht(v);
+  // hours: total sales per hour over the month
+  const hours = Array(24).fill(0), hourBills = Array(24).fill(0);
+  bills.forEach(t => { const h = Number(String(t.time || '').slice(0, 2)); if (h >= 0 && h < 24 && t.time) { hours[h] += amt(t); hourBills[h]++; } });
+  const used = hours.map((v, h) => v ? h : -1).filter(h => h >= 0);
+  const from = used.length ? Math.min(...used) : 0, to = used.length ? Math.max(...used) : 0;
+  const hv = hours.slice(from, to + 1);
+  const hl = hv.map((_, i) => `${String(from + i).padStart(2, '0')}:00–${String(from + i + 1).padStart(2, '0')}:00 · ${hourBills[from + i]} บิล`);
+  const peak = used.length ? used.reduce((a, h) => hours[h] > hours[a] ? h : a, used[0]) : null;
+  const xt = hv.map((_, i) => i).filter(i => hv.length <= 8 || i % 2 === 0).map(i => ({ i, label: String(from + i) }));
+  return `<section class="card"><h3>🛒 รายงานจากหน้าขาย</h3>
+      <section class="stat-tiles">
+        <div class="tile"><small>บิล</small><b class="num">${nf.format(bills.length)}</b><small>${days ? `เฉลี่ย ${nf.format(Math.round(bills.length / days))}/วัน` : ''}</small></div>
+        <div class="tile"><small>ยอดเฉลี่ยต่อบิล</small><b class="num">${baht(Math.round(sales / bills.length))}</b></div>
+        <div class="tile"><small>แก้วต่อบิล</small><b class="num">${(cups / bills.length).toFixed(1)}</b></div>
+      </section>
+    </section>
+    <section class="card"><div class="row between"><h3>🏆 เมนูขายดี</h3></div>
+      <div class="seg">${[['qty', 'จำนวนแก้ว'], ['sales', 'ยอดขาย'], ['profit', 'กำไร']].map(([k, l]) =>
+        `<button aria-selected="${by === k}" data-action="top-by" data-k="${k}">${l}</button>`).join('')}</div>
+      <ol class="topmenu">${rows.slice(0, ui.topAll ? rows.length : 10).map((r, i) => `<li>
+        <div class="tm-head"><span class="tm-rank num">${i + 1}</span><span aria-hidden="true">${r.emoji}</span><span class="tm-name">${esc(r.name)}</span>
+          <b class="num">${fmt(r[by], r)}</b></div>
+        <div class="cb-track"><div class="cb-fill" style="width:${Math.max(2, Math.max(0, r[by]) / max * 100)}%"></div></div>
+        <small class="muted">${nf.format(r.qty)} ${r.topping ? 'ที่' : 'แก้ว'} · ขาย ${baht(r.sales)} · ต้นทุน ${r.cost ? baht(r.cost) : '—'} · กำไร <b class="${r.profit < 0 ? 'neg' : ''}">${baht(r.profit)}</b>${r.cost ? ` (${pct(r.margin)})` : ''}</small>
+      </li>`).join('')}</ol>
+      ${rows.length > 10 ? `<button class="link small" data-action="top-all">${ui.topAll ? 'ย่อ' : `ดูทั้งหมด ${rows.length} รายการ`}</button>` : ''}
+      ${noCost ? `<p class="small muted">💡 บางเมนูยังไม่ได้ใส่ต้นทุน/แก้ว กำไรจะดูสูงเกินจริง · ใส่ได้ที่ ⚙️ ตั้งค่า › 🧋 เมนูร้าน (มีผลกับบิลถัดไป)</p>` : ''}
+    </section>
+    ${used.length ? `<section class="card"><h3>⏰ ช่วงเวลาขายดี <small class="muted">(รวมทั้งเดือน)</small></h3>
+      ${dailyColumns(hv, hl, baht, 'income', xt)}
+      <p class="small muted">ขายดีสุดช่วง <b>${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00</b> · ${baht(hours[peak])} จาก ${hourBills[peak]} บิล</p>
+    </section>` : ''}`;
+}
+
 function viewStats() {
   const list = monthTx();
   const m = money(list);
@@ -232,6 +290,7 @@ function viewStats() {
     <section class="card"><h3>ยอดขายรายวัน</h3>${dailyColumns(values, labels, baht, 'income')}</section>
     ${Object.keys(ch).length ? `<section class="card"><h3>ช่องทางรับเงิน</h3><ul class="methods">${Object.entries(ch).sort((a, b) => b[1] - a[1])
       .map(([k, v]) => `<li><span>${METHODS[k] || k}</span><span class="num">${baht(v)} <small class="muted">${pct(m.sales ? v / m.sales : 0)}</small></span></li>`).join('')}</ul></section>` : ''}
+    ${posReport(list)}
     ${wdRows.length ? `<section class="card"><h3>วันขายดี <small class="muted">(เฉลี่ยต่อวัน)</small></h3>${categoryBars(wdRows, baht, 'income')}</section>` : ''}
     <section class="card"><h3>ต้นทุน + ค่าใช้จ่าย แยกหมวด</h3>${categoryBars(catRows, baht, 'expense')}</section>`;
 }
@@ -1324,6 +1383,8 @@ document.addEventListener('click', async e => {
     // --- sell ---
     case 'sell-add': return tapMenu(el.dataset.id);
     case 'back': if (history.state?.v === 'scan') return history.back(); return go(el.dataset.to);
+    case 'top-by': ui.topBy = el.dataset.k; return render();
+    case 'top-all': ui.topAll = !ui.topAll; return render();
     case 'sell-undo': cartUndo(el.dataset.id); return render();
     case 'style-add': cartAdd(el.dataset.id, 1, el.dataset.s); if (navigator.vibrate) navigator.vibrate(10); $('#sheet').close(); return render();
     case 'sell-tab': ui.sellTab = el.dataset.t; return render();
