@@ -1,12 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // จุกจิกการค้า: ใช้ได้เฉพาะ Gmail ผู้ดูแลร้าน (weekendchill69@gmail.com) ทุกเครื่องที่ล็อกอินบัญชีนี้
+    // จุกจิกการค้า: ใช้ได้เฉพาะ Gmail ผู้ดูแลร้าน (tun.supakorn1993@gmail.com) ทุกเครื่องที่ล็อกอินบัญชีนี้
     // ข้อมูลร้านอยู่ที่ users/6aNH4DgIqSfQA9KbOWVcwLc3Jzn1 (ที่เก็บเดิม เปลี่ยนผู้ดูแลแล้วข้อมูลไม่หาย)
     // ล็อกอินด้วย LINE: Cloudflare Worker ออก token ให้เฉพาะบัญชี LINE ในรายชื่อ OWNER_LINE_IDS (claim lineOwner)
     function isOwner() {
       return request.auth != null && (
-        (request.auth.token.email == 'weekendchill69@gmail.com' && request.auth.token.email_verified == true)
+        (request.auth.token.email == 'tun.supakorn1993@gmail.com' && request.auth.token.email_verified == true)
         || request.auth.token.lineOwner == true);
     }
     match /users/{uid} {

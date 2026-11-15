@@ -7,7 +7,7 @@ workers_dev = true
 [vars]
 FIREBASE_PROJECT_ID = "jukjik-kaa-4fae"
 SHOP_UID = "6aNH4DgIqSfQA9KbOWVcwLc3Jzn1"
-OWNER_EMAIL = "weekendchill69@gmail.com"
+OWNER_EMAIL = "tun.supakorn1993@gmail.com"
 LINE_CHANNEL_ID = "2012622452"
 LINE_LOGIN_CHANNEL_ID = "2012622553"
 LIFF_ID = "2012622553-NfVZ93EA"
