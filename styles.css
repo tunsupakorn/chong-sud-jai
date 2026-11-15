@@ -494,3 +494,5 @@ details.more-settings section + section { margin-top: 14px; }
 .line-grid input, .line-note input { padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); width: 100%; }
 .line-note { margin-bottom: 10px; }
 .btn.line-btn { background: #06C755; color: #fff; box-shadow: 0 4px 14px rgba(6, 199, 85, .3); }
+.order-fulfil { font-size: .92rem; }
+.order-fulfil a { color: var(--accent); }

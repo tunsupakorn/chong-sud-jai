@@ -248,3 +248,24 @@ test('POS sign-in with LINE: only listed LINE accounts get a Firebase custom tok
   assert.equal((await call('POST', `/shop/orders/${placed.data.id}`, { token: lineOwner, body: { action: 'accept' } })).status, 200);
   assert.equal((await call('POST', `/shop/orders/${placed.data.id}`, { token: await firebaseToken({ lineOwner: false }), body: { action: 'ready' } })).status, 403);
 });
+
+test('slip: attach, shown on the sale, same slip refused on another order', async () => {
+  const body = { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'promptpay' };
+  const a = await call('POST', '/orders', { token: 'cust-A', body });
+  const img = 'data:image/jpeg;base64,' + 'A'.repeat(1000);
+  assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-A', body: { image: 'data:text/html;base64,AAAA' } })).status, 400);
+  assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-A', body: { image: 'data:image/jpeg;base64,' + 'A'.repeat(950000) } })).status, 400);
+  assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-B', body: { image: img } })).status, 404);
+  assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-A', body: { image: img, ref: '004:015299123456ABC' } })).status, 200);
+  assert.equal(docs[`${SHOP}/slips/line-${a.data.id}`].data.data, img);
+  const mine = await call('GET', `/orders/${a.data.id}`, { token: 'cust-A' });
+  assert.equal(mine.data.hasSlip, true); assert.equal(mine.data.payClaimed, true);
+  const b = await call('POST', '/orders', { token: 'cust-B', body });
+  assert.equal((await call('POST', `/orders/${b.data.id}/slip`, { token: 'cust-B', body: { image: img, ref: '004:015299123456ABC' } })).status, 409);
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  await call('POST', `/shop/orders/${a.data.id}`, { token: owner, body: { action: 'paid' } });
+  await call('POST', `/shop/orders/${a.data.id}`, { token: owner, body: { action: 'done' } });
+  const tx = docs[`${SHOP}/tx/line-${a.data.id}`].data;
+  assert.equal(tx.hasSlip, true); assert.equal(tx.qrRef, '004:015299123456ABC');
+  assert.equal((await call('POST', `/orders/${a.data.id}/slip`, { token: 'cust-A', body: { image: img } })).status, 409); // already paid
+});

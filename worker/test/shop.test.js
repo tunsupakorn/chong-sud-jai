@@ -79,3 +79,15 @@ test('public order hides cost and shows promptpay only while unpaid', () => {
   assert.equal(p.promptpay, '0812345678');
   assert.equal(Shop.publicOrder('id1', { ...o, paid: true }, { promptpay: '0812345678' }).promptpay, undefined);
 });
+
+test('fulfilment: modes, required details, ready text', () => {
+  const cfg = Shop.lineSettings({});
+  assert.deepEqual(Shop.checkFulfil(cfg, undefined), { mode: 'pickup' });
+  assert.deepEqual(Shop.checkFulfil(cfg, { mode: 'dinein', detail: 'โต๊ะ 3' }), { mode: 'dinein', detail: 'โต๊ะ 3' });
+  assert.throws(() => Shop.checkFulfil(cfg, { mode: 'curbside' }), /รอตรงไหน/);
+  assert.throws(() => Shop.checkFulfil(cfg, { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '12' }), /เบอร์/);
+  assert.deepEqual(Shop.checkFulfil(cfg, { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '081-234-5678' }), { mode: 'delivery', detail: 'บ้านเลขที่ 9 ซอย 2', phone: '0812345678' });
+  assert.throws(() => Shop.checkFulfil({ ...cfg, modes: ['pickup'] }, { mode: 'delivery' }), /ไม่ได้เปิด/);
+  assert.match(Shop.readyText({ no: 'L001', fulfil: { mode: 'delivery' } }), /ออกไปส่ง/);
+  assert.match(Shop.readyText({ no: 'L001' }), /พร้อมรับ/);
+});

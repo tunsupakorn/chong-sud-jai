@@ -828,6 +828,8 @@ async function showQR(el, amount) {
 
 // ==================== LINE OA: ออเดอร์จากลูกค้า ====================
 const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(state.settings.line || {}) });
+const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', dinein: '🪑 นั่งทานที่ร้าน', curbside: '🚗 รับหน้าร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
+const lineModes = () => (Array.isArray(lineCfg().modes) && lineCfg().modes.length ? lineCfg().modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
 const ORDER_STATUS = { new: '🆕 ออเดอร์ใหม่', accepted: '🧑‍🍳 กำลังทำ', ready: '☕ รอลูกค้ารับ' };
 const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':').map(Number); return h * 60 + m; };
 const openOrders = () => [...state.orders].sort((a, b) => pickupMin(a) - pickupMin(b) || (a.createdAt || 0) - (b.createdAt || 0));
@@ -839,6 +841,8 @@ function lineCard() {
     <p class="muted small">ลูกค้าสั่งและจ่ายผ่าน LINE ออเดอร์เข้ามาที่ 🛒 ขาย › ออเดอร์ LINE · ตั้งค่าบัญชี LINE ตามคู่มือใน README</p>
     <div class="seg"><button aria-selected="${c.open}" data-action="line-open" data-v="1">🟢 เปิดรับออเดอร์</button>
       <button aria-selected="${!c.open}" data-action="line-open" data-v="">⏸️ ปิดรับ</button></div>
+    <p class="small muted" style="margin:12px 0 4px">วิธีรับที่ให้ลูกค้าเลือก</p>
+    <div class="chips">${Object.entries(FULFIL).map(([k, l]) => `<button class="chip ${lineModes().includes(k) ? 'on' : ''}" data-action="line-mode" data-m="${k}" aria-pressed="${lineModes().includes(k)}">${l}</button>`).join('')}</div>
     <div class="line-grid">
       <label>เปิด<input type="time" value="${esc(c.from)}" data-line="from"></label>
       <label>ปิด<input type="time" value="${esc(c.to)}" data-line="to"></label>
@@ -859,14 +863,14 @@ function saveLine(patch) {
 
 function orderCard(o) {
   const pay = o.paid ? '<span class="pill ok">ชำระแล้ว</span>'
-    : o.payMethod === 'promptpay' ? (o.payClaimed ? '<span class="pill warn">ลูกค้าแจ้งโอนแล้ว · เช็กแอปธนาคาร</span>' : '<span class="pill">พร้อมเพย์ · ยังไม่โอน</span>')
+    : o.payMethod === 'promptpay' ? (o.hasSlip ? '<span class="pill warn">แนบสลิปแล้ว · เช็กยอดเข้า</span>' : o.payClaimed ? '<span class="pill warn">ลูกค้าแจ้งโอนแล้ว · เช็กแอปธนาคาร</span>' : '<span class="pill">พร้อมเพย์ · ยังไม่โอน</span>')
     : '<span class="pill">💵 เงินสดตอนรับ</span>';
   const confirmPP = o.payMethod === 'promptpay' && !o.paid ? `<button class="btn ghost sm" data-action="ord-paid" data-id="${esc(o.id)}">✓ เงินเข้าแล้ว</button>` : '';
   const actions = o.status === 'new'
     ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="accept">รับออเดอร์</button>${confirmPP}
        <button class="btn danger sm" data-action="ord-cancel" data-id="${esc(o.id)}">ยกเลิก</button>`
     : o.status === 'accepted'
-    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="ready">ทำเสร็จ · แจ้งลูกค้า</button>${confirmPP}
+    ? `<button class="btn primary" data-action="ord-status" data-id="${esc(o.id)}" data-s="ready">${o.fulfil?.mode === 'delivery' ? 'ออกไปส่ง · แจ้งลูกค้า' : 'ทำเสร็จ · แจ้งลูกค้า'}</button>${confirmPP}
        <button class="btn danger sm" data-action="ord-cancel" data-id="${esc(o.id)}">ยกเลิก</button>`
     : o.paid ? `<button class="btn primary" data-action="ord-done" data-id="${esc(o.id)}">ส่งมอบแล้ว ✓</button>`
     : o.payMethod === 'promptpay' ? `${confirmPP}<button class="btn ghost sm" data-action="ord-cash" data-id="${esc(o.id)}">💵 ลูกค้าจ่ายเงินสดแทน</button>`
@@ -875,10 +879,12 @@ function orderCard(o) {
     <div class="row between"><div><b class="order-no">${esc(o.no)}</b> <span class="muted small">${esc(o.displayName || '')}</span></div>
       <span class="order-time">${o.pickup?.mode === 'later' ? `⏰ นัด ${esc(o.pickup.at)}` : `⚡ รับเลย ~${esc(o.pickup?.at || '')}`}</span></div>
     <p class="small muted">${ORDER_STATUS[o.status] || ''}</p>
+    <p class="order-fulfil"><b>${FULFIL[o.fulfil?.mode] || FULFIL.pickup}</b>${o.fulfil?.detail ? ` · ${esc(o.fulfil.detail)}` : ''}
+      ${o.fulfil?.phone ? ` · <a href="tel:${esc(o.fulfil.phone)}">📞 ${esc(o.fulfil.phone)}</a>` : ''}</p>
     <ul class="order-items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>×${i.qty}</b></li>`).join('')}</ul>
     ${o.note ? `<p class="order-note">📝 ${esc(o.note)}</p>` : ''}
     <div class="row between wrap gap"><b class="num order-total">${baht(o.total)}</b>${pay}</div>
-    <div class="order-actions">${actions}</div>
+    <div class="order-actions">${o.hasSlip ? `<button class="btn ghost sm" data-action="ord-slip" data-id="${esc(o.id)}">🧾 ดูสลิป</button>` : ''}${actions}</div>
   </article>`;
 }
 
@@ -1582,14 +1588,33 @@ document.addEventListener('click', async e => {
       return toast('บันทึกการตั้งค่า LINE แล้ว');
     }
     case 'ord-status': return orderAction(el.dataset.id, el.dataset.s, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
+    case 'line-mode': {
+      const m = el.dataset.m, cur = lineModes();
+      const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
+      if (!next.length) return toast('ต้องเปิดอย่างน้อย 1 วิธี');
+      saveLine({ modes: Object.keys(FULFIL).filter(k => next.includes(k)) });
+      return toast(`${FULFIL[m]} · ${next.includes(m) ? 'เปิด' : 'ปิด'}แล้ว`);
+    }
     case 'ord-paid': {
       const o = orderById(el.dataset.id);
       if (!o || !confirm(`เช็กแล้วว่าเงิน ${baht(o.total)} ของ ${o.no} เข้าบัญชีร้าน?`)) return;
+      if ($('#sheet').open) $('#sheet').close();
       return orderAction(o.id, 'paid', `${o.no} ชำระแล้ว ✅`);
     }
     case 'ord-cash': {
       const o = orderById(el.dataset.id); if (!o) return;
       return orderAction(o.id, 'cash', `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
+    }
+    case 'ord-slip': {
+      const o = orderById(el.dataset.id); if (!o) return;
+      $('#sheet').innerHTML = `<div class="sheet-body"><div class="grab" aria-hidden="true"></div>
+        <div class="row between"><h2>🧾 สลิป ${esc(o.no)} · ${baht(o.total)}</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
+        <p class="small muted">${esc(o.displayName || '')}${o.slipRef ? ' · ✓ อ่าน QR บนสลิปได้ (กันสลิปซ้ำแล้ว)' : ' · อ่าน QR บนสลิปไม่ได้ ตรวจในแอปธนาคารด้วย'}</p>
+        <div class="slip-box" id="ord-slip-box"></div>
+        ${!o.paid ? `<button class="btn primary big" data-action="ord-paid" data-id="${esc(o.id)}">✓ ยอด ${baht(o.total)} เข้าแล้ว</button>` : ''}
+      </div>`;
+      if (!$('#sheet').open) $('#sheet').showModal();
+      return showSlipIn($('#ord-slip-box'), `line-${o.id}`);
     }
     case 'ord-done': return orderAction(el.dataset.id, 'done', 'ส่งมอบแล้ว · บันทึกยอดขายแล้ว 🥤');
     case 'ord-cancel': {

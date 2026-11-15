@@ -1,6 +1,7 @@
 // หน้าสั่งน้ำใน LINE (LIFF) — เมนู › ตะกร้า › เวลารับ + วิธีจ่าย › ติดตามคิว
 import { LIFF_ID, API_BASE } from './config.js';
 import * as PP from '../promptpay.js';
+import { readSlipQR } from '../qr.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8,10 +9,19 @@ const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 const baht = n => '฿' + nf.format(n || 0);
 const STYLES = { blend: { word: 'ปั่น', emoji: '🧊' }, iced: { word: 'เย็น', emoji: '🥤' }, hot: { word: 'ร้อน', emoji: '♨️' } };
 const STATUS = { new: 'รอร้านรับออเดอร์', accepted: 'ร้านกำลังทำ 🧑‍🍳', ready: 'พร้อมรับแล้ว! ☕', done: 'รับแล้ว ขอบคุณค่ะ 💙', cancelled: 'ออเดอร์ถูกยกเลิก' };
+const READY = { delivery: 'กำลังออกไปส่ง 🛵', dinein: 'พร้อมเสิร์ฟ ☕', curbside: 'พร้อมแล้ว ร้านกำลังเดินไปส่ง 🚗' };
 const toMin = hm => { const [h, m] = String(hm).split(':').map(Number); return h * 60 + m; };
 const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
+const FULFIL = {
+  pickup: { label: 'มารับเองที่ร้าน', emoji: '🛍️', now: 'รับเลย', later: 'นัดเวลารับ' },
+  dinein: { label: 'นั่งทานที่ร้าน', emoji: '🪑', now: 'ทำเลย', later: 'นัดเวลา', ask: 'เลขโต๊ะ / ที่นั่ง (ถ้ามี)' },
+  curbside: { label: 'รับหน้าร้าน', emoji: '🚗', now: 'รับเลย', later: 'นัดเวลารับ', ask: 'รอตรงไหน เช่น ทะเบียนรถ สีรถ', need: true },
+  delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵', now: 'ส่งเลย', later: 'นัดเวลาส่ง', ask: 'ที่อยู่จัดส่ง / จุดสังเกต', need: true, phone: true },
+};
+const fulfilText = f => f ? `${FULFIL[f.mode]?.emoji || ''} ${FULFIL[f.mode]?.label || ''}${f.detail ? ` · ${f.detail}` : ''}` : '';
 const ui = { view: 'loading', shop: null, menu: [], cart: [], tab: 'all', pickup: { mode: 'asap', at: '' }, pay: '', note: '',
+  fulfil: { mode: '', detail: '', phone: '' },
   order: null, orders: [], me: null, busy: false, error: '' };
 
 function toast(msg) {
@@ -99,6 +109,10 @@ function viewCheckout() {
   if (!asapOk && ui.pickup.mode === 'asap') ui.pickup = { mode: 'later', at: slots[0] || '' };
   if (ui.pickup.mode === 'later' && !slots.includes(ui.pickup.at)) ui.pickup.at = slots[0] || '';
   if (!ui.pay) ui.pay = s.promptpay ? 'promptpay' : 'cash';
+  const modes = (s.modes || ['pickup']).filter(k => FULFIL[k]);
+  if (!modes.includes(ui.fulfil.mode)) ui.fulfil.mode = modes[0];
+  const F = FULFIL[ui.fulfil.mode];
+  try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); if (!ui.fulfil.phone && saved.phone) ui.fulfil.phone = saved.phone; if (!ui.fulfil.detail && saved[ui.fulfil.mode]) ui.fulfil.detail = saved[ui.fulfil.mode]; } catch {}
   return `<header class="shop-head"><button class="icon-btn" data-action="back" aria-label="กลับ">←</button><h1 class="grow">ยืนยันออเดอร์</h1></header>
     <section class="card"><h3>🧾 รายการ</h3>
       <ul class="cart-lines">${lines().map(l => `<li><span>${esc(l.m.emoji)} ${esc(l.name)}</span>
@@ -107,10 +121,16 @@ function viewCheckout() {
         <b class="num">${baht(l.price * l.qty)}</b></li>`).join('')}</ul>
       <div class="close-total"><span>รวม ${cups()} แก้ว</span><b class="num">${baht(total())}</b></div>
     </section>
-    <section class="card"><h3>⏰ รับเมื่อไหร่</h3>
+    ${modes.length > 1 || F.ask ? `<section class="card"><h3>📍 รับยังไง</h3>
+      ${modes.length > 1 ? `<div class="fulfil-grid">${modes.map(k => `<button class="fulfil-btn" aria-selected="${ui.fulfil.mode === k}" data-action="fulfil" data-m="${k}">
+        <span>${FULFIL[k].emoji}</span>${FULFIL[k].label}</button>`).join('')}</div>` : ''}
+      ${F.ask ? `<input class="time-pick" style="margin-top:10px" maxlength="200" placeholder="${F.ask}${F.need ? '' : ''}" value="${esc(ui.fulfil.detail)}" data-input="fdetail">` : ''}
+      ${F.phone ? `<input class="time-pick" style="margin-top:10px" type="tel" inputmode="tel" maxlength="12" placeholder="เบอร์โทรติดต่อ" value="${esc(ui.fulfil.phone)}" data-input="fphone">` : ''}
+    </section>` : ''}
+    <section class="card"><h3>⏰ ${ui.fulfil.mode === 'delivery' ? 'ส่งเมื่อไหร่' : 'เมื่อไหร่'}</h3>
       <div class="seg">
-        <button aria-selected="${ui.pickup.mode === 'asap'}" data-action="pickup" data-m="asap" ${asapOk ? '' : 'disabled'}>รับเลย (~${s.prep} นาที)</button>
-        <button aria-selected="${ui.pickup.mode === 'later'}" data-action="pickup" data-m="later" ${slots.length ? '' : 'disabled'}>นัดเวลารับ</button></div>
+        <button aria-selected="${ui.pickup.mode === 'asap'}" data-action="pickup" data-m="asap" ${asapOk ? '' : 'disabled'}>${F.now} (~${s.prep} นาที)</button>
+        <button aria-selected="${ui.pickup.mode === 'later'}" data-action="pickup" data-m="later" ${slots.length ? '' : 'disabled'}>${F.later}</button></div>
       ${ui.pickup.mode === 'later' ? `<select class="time-pick" data-input="at" aria-label="เวลารับ" style="margin-top:10px">
         ${slots.map(t => `<option ${t === ui.pickup.at ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
     </section>
@@ -137,13 +157,17 @@ function viewOrder() {
     <section class="card">
       <div class="queue-no"><small>คิวของคุณ</small><b>${esc(o.no)}</b></div>
       ${o.status !== 'cancelled' ? `<ol class="steps">${['รับออเดอร์', 'กำลังทำ', 'พร้อมรับ', 'รับแล้ว'].map((l, i) => `<li class="${i <= step ? 'on' : ''}">${l}</li>`).join('')}</ol>` : ''}
-      <p class="status-line ${o.status}">${STATUS[o.status] || esc(o.status)}</p>
-      <p class="small muted center" style="margin:4px 0 0">${o.pickup?.mode === 'later' ? `นัดรับ ${esc(o.pickup.at)} น.` : `รับได้ประมาณ ${esc(o.pickup?.at || '')} น.`}</p>
+      <p class="status-line ${o.status}">${(o.status === 'ready' && READY[o.fulfil?.mode]) || STATUS[o.status] || esc(o.status)}</p>
+      <p class="small muted center" style="margin:4px 0 0">${esc(fulfilText(o.fulfil))} · ${o.pickup?.mode === 'later' ? `นัด ${esc(o.pickup.at)} น.` : `ประมาณ ${esc(o.pickup?.at || '')} น.`}</p>
     </section>
     ${payBox ? `<section class="card"><h3>📲 โอนพร้อมเพย์ ${baht(o.total)}</h3>
-      ${o.payClaimed ? '<p class="g-note">✅ แจ้งโอนแล้ว ร้านกำลังตรวจยอด</p>' : `<div class="pp-qr" id="qr"><div class="spinner"></div></div>
-      <p class="small muted center">แคปหน้าจอแล้วสแกนในแอปธนาคาร ยอดขึ้นเอง</p>
-      <div class="btn-col"><button class="btn primary big" data-action="claim">โอนแล้ว แจ้งร้าน</button>
+      ${o.payClaimed ? `<p class="g-note">✅ ${o.hasSlip ? 'แนบสลิปแล้ว' : 'แจ้งโอนแล้ว'} ร้านกำลังตรวจยอด</p>
+        <label class="btn ghost slip-btn">${ui.slipBusy ? 'กำลังส่งสลิป…' : o.hasSlip ? '🔄 เปลี่ยนรูปสลิป' : '📎 แนบสลิป'}<input type="file" accept="image/*" data-input="slip" hidden ${ui.slipBusy ? 'disabled' : ''}></label>`
+      : `<div class="pp-qr" id="qr"><div class="spinner"></div></div>
+      <button class="btn ghost save-qr" data-action="save-qr">💾 บันทึกรูป QR ลงเครื่อง</button>
+      <ol class="pay-steps small"><li>เปิดแอปธนาคาร › สแกน › เลือกรูป QR จากคลังภาพ (ยอดขึ้นเอง)</li><li>โอนเสร็จ กด <b>แนบสลิป</b></li></ol>
+      <div class="btn-col"><label class="btn primary big slip-btn">${ui.slipBusy ? 'กำลังส่งสลิป…' : '📎 โอนแล้ว แนบสลิป'}<input type="file" accept="image/*" data-input="slip" hidden ${ui.slipBusy ? 'disabled' : ''}></label>
+      <button class="link small" data-action="claim">โอนแล้วแต่ไม่มีสลิป แจ้งร้านเฉยๆ</button>
       <button class="btn ghost" data-action="to-cash">เปลี่ยนเป็นจ่ายเงินสดตอนรับ</button></div>`}</section>` : ''}
     <section class="card"><h3>🧾 รายการ</h3>
       <ul class="cart-lines">${o.items.map(i => `<li><span>${esc(i.name)}</span><span>×${i.qty}</span><b class="num">${baht(i.price * i.qty)}</b></li>`).join('')}</ul>
@@ -172,7 +196,7 @@ function render() {
     : ui.view === 'orders' ? viewOrders() : ui.view === 'error' ? viewError() : '<div class="center pad"><div class="spinner" style="margin:40px auto"></div></div>';
   const qr = $('#qr');
   if (qr && ui.order?.promptpay) PP.qrDataUrl(ui.order.promptpay, ui.order.total, 300)
-    .then(url => { qr.innerHTML = `<img src="${url}" alt="QR พร้อมเพย์ ${baht(ui.order.total)}" width="240" height="240"><small>${esc(ui.shop?.name || '')} · <b>${baht(ui.order.total)}</b></small>`; })
+    .then(url => { ui.qrUrl = url; qr.innerHTML = `<img src="${url}" alt="QR พร้อมเพย์ ${baht(ui.order.total)}" width="240" height="240"><small>${esc(ui.shop?.name || '')} · <b>${baht(ui.order.total)}</b></small>`; })
     .catch(e => { qr.innerHTML = `<p class="err">${esc(e.message)}</p>`; });
 }
 function go(view) { ui.view = view; ui.error = ''; window.scrollTo(0, 0); render(); }
@@ -208,7 +232,9 @@ async function placeOrder() {
   ui.busy = true; ui.error = ''; render();
   try {
     const o = await api('/orders', { method: 'POST', body: {
-      items: ui.cart.map(({ id, style, qty }) => ({ id, style, qty })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note } });
+      items: ui.cart.map(({ id, style, qty }) => ({ id, style, qty })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note,
+      fulfil: { mode: ui.fulfil.mode, detail: ui.fulfil.detail, phone: ui.fulfil.phone } } });
+    try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); localStorage.setItem('kaa_fulfil', JSON.stringify({ ...saved, phone: ui.fulfil.phone || saved.phone, [ui.fulfil.mode]: ui.fulfil.detail })); } catch {}
     ui.cart = []; ui.note = '';
     try { sessionStorage.removeItem('kaa_cart'); } catch {}
     // a message from the customer lets the shop's bot answer with a free reply (push messages count against the quota)
@@ -226,6 +252,59 @@ async function loadMenu() {
   const data = await api('/menu');
   ui.shop = data.shop; ui.menu = data.menu;
   ui.cart = ui.cart.filter(l => item(l.id));
+}
+
+// ---------- QR picture to save, slip upload ----------
+const loadImg = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
+async function qrPicture() {
+  const o = ui.order, W = 720, H = 980;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#2F7FD6'; g.fillRect(0, 0, W, 120);
+  g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.font = '600 44px Mitr, sans-serif';
+  g.fillText(ui.shop?.name || 'จุกจิก คาฟ่า', W / 2, 78);
+  g.imageSmoothingEnabled = false; // keep the QR modules sharp
+  g.drawImage(await loadImg(ui.qrUrl), 110, 170, 500, 500);
+  g.fillStyle = '#1F2A44'; g.font = '600 64px Mitr, sans-serif'; g.fillText(baht(o.total), W / 2, 770);
+  g.font = '400 34px "IBM Plex Sans Thai", sans-serif'; g.fillStyle = '#4A5672';
+  g.fillText(`พร้อมเพย์ · คิว ${o.no}`, W / 2, 830);
+  g.fillText('เปิดแอปธนาคาร › สแกน › เลือกรูปนี้', W / 2, 900);
+  return new Promise(ok => c.toBlob(ok, 'image/png'));
+}
+async function saveQR() {
+  if (!ui.qrUrl) return toast('รอ QR โหลดก่อน');
+  const blob = await qrPicture();
+  const file = new File([blob], `QR-${ui.order.no}-${ui.order.total}THB.png`, { type: 'image/png' });
+  // share sheet → "Save image" works inside LINE on Android/iOS; otherwise a normal download
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: `QR ${ui.order.no}` }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('บันทึกรูปแล้ว · ถ้าไม่เจอ กดค้างที่ QR แล้วเลือกบันทึกรูป');
+}
+async function compress(file) {
+  const bmp = await createImageBitmap(file);
+  for (const [side, q] of [[1400, 0.72], [1100, 0.62], [900, 0.55]]) {
+    const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', q);
+    if (url.length < 850000) return url;
+  }
+  throw new Error('รูปใหญ่เกินไป');
+}
+async function sendSlip(file) {
+  if (!file || !/^image\//.test(file.type)) return toast('เลือกรูปสลิป');
+  ui.slipBusy = true; render();
+  try {
+    const [qr, image] = await Promise.all([readSlipQR(file).catch(() => null), compress(file)]);
+    await api(`/orders/${ui.order.id}/slip`, { method: 'POST', body: { image, ref: qr?.key || '' } });
+    toast('ส่งสลิปให้ร้านแล้ว 💙');
+  } catch (e) { toast(e.message); }
+  ui.slipBusy = false;
+  return refreshOrder(ui.order.id);
 }
 
 // ---------- events ----------
@@ -251,10 +330,12 @@ document.addEventListener('click', async e => {
       try { await loadMenu(); } catch {} return go('menu');
     case 'pickup': ui.pickup = { mode: el.dataset.m, at: ui.pickup.at }; return render();
     case 'pay': ui.pay = el.dataset.m; return render();
+    case 'fulfil': ui.fulfil = { ...ui.fulfil, mode: el.dataset.m, detail: '' }; return render();
     case 'place': return placeOrder();
     case 'my-orders': go('orders'); try { ui.orders = await api('/orders'); } catch (err) { toast(err.message); } return render();
     case 'open-order': return openOrder(id);
     case 'refresh': return refreshOrder(ui.order.id);
+    case 'save-qr': return saveQR().catch(err => toast('บันทึกไม่ได้: ' + err.message));
     case 'claim':
       try { await api(`/orders/${ui.order.id}/claim`, { method: 'POST' }); toast('แจ้งร้านแล้ว 💙'); } catch (err) { toast(err.message); }
       return refreshOrder(ui.order.id);
@@ -269,8 +350,16 @@ document.addEventListener('click', async e => {
     case 'reload': return location.reload();
   }
 });
-document.addEventListener('change', e => { if (e.target.dataset.input === 'at') ui.pickup.at = e.target.value; });
-document.addEventListener('input', e => { if (e.target.dataset.input === 'note') ui.note = e.target.value; });
+document.addEventListener('change', e => {
+  if (e.target.dataset.input === 'at') ui.pickup.at = e.target.value;
+  if (e.target.dataset.input === 'slip') { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendSlip(f); }
+});
+document.addEventListener('input', e => {
+  const k = e.target.dataset.input;
+  if (k === 'note') ui.note = e.target.value;
+  if (k === 'fdetail') ui.fulfil.detail = e.target.value;
+  if (k === 'fphone') ui.fulfil.phone = e.target.value;
+});
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); });
 
 // ---------- boot ----------
