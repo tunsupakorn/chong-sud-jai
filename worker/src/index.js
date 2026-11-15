@@ -14,6 +14,8 @@ const baht = n => '฿' + Number(n || 0).toLocaleString('th-TH', { maximumFracti
 
 export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   const sa = typeof env.FIREBASE_SERVICE_ACCOUNT === 'string' ? JSON.parse(env.FIREBASE_SERVICE_ACCOUNT || '{}') : env.FIREBASE_SERVICE_ACCOUNT;
+  if (!sa?.private_key || !sa?.client_email)
+    console.error('FIREBASE_SERVICE_ACCOUNT is not a Firebase service-account JSON (needs private_key and client_email)');
   const projectId = env.FIREBASE_PROJECT_ID || sa?.project_id;
   const db = new Firestore(projectId, () => googleToken(sa, fetchFn), fetchFn);
   const shop = `users/${env.SHOP_UID}`;

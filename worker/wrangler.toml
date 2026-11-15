@@ -17,3 +17,6 @@ SHOP_NAME = "จุกจิก คาฟ่า"
 # ค่าลับ (ใส่ใน Cloudflare dashboard › Worker › Settings › Variables and Secrets หรือ `wrangler secret put`):
 #   LINE_CHANNEL_SECRET        Channel secret ของ Messaging API channel
 #   FIREBASE_SERVICE_ACCOUNT   ไฟล์ JSON ของ service account (Firebase › Project settings › Service accounts)
+
+[observability]
+enabled = true
