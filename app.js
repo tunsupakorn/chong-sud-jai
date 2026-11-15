@@ -534,7 +534,7 @@ function viewGate() {
 
 // ---------- owner: who may use the app ----------
 const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
-const TEMPLATE_URL = ''; // ชีตต้นแบบของร้าน: เพิ่มในเฟสถัดไป
+const TEMPLATE_URL = ''; // ชีตต้นแบบของร้าน (มีสคริปต์ apps-script/Code.gs อยู่ข้างใน แชร์แบบดูได้) ลงท้ายด้วย /copy
 function inviteText(name) {
   return `${name ? `สวัสดี ${name} ` : ''}ชวนมาใช้ "จุกจิก" แอปจดรายรับรายจ่าย อ่านสลิปให้อัตโนมัติ 🐣
 1) เปิด ${APP_URL} แล้วติดตั้งลงหน้าจอ (วิธีติดตั้ง: ${APP_URL}guide.html#sec-install)
@@ -613,6 +613,10 @@ function sheetCard() {
       <p class="muted small">เก็บสำเนาทุกรายการไว้ใน Google Sheet และรูปสลิปไว้ใน Google Drive ของคุณเอง</p>
       ${state.mode !== 'cloud' ? '<p class="small">🔐 ล็อกอินบัญชีก่อน แล้วค่อยเชื่อมชีต</p>' : ''}
       <ol class="steps">
+        ${TEMPLATE_URL ? `<li><a class="btn primary sm" href="${TEMPLATE_URL}" target="_blank" rel="noopener">① 📗 สร้างชีตของฉัน (กด “ทำสำเนา”) ↗</a></li>
+        <li><span class="small">② <b>บนคอมพิวเตอร์</b> เปิดชีตที่สร้าง › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> แล้วกดปุ่ม
+          <b>“เปิดแอปและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ! ไม่ต้องคัดลอกลิงก์
+          <br>ครั้งแรกเมนูจะพาเปิดเป็น <b>เว็บแอป</b> ก่อน (ทำตามในหน้าต่าง ~1 นาที)</span></li>` : `
         <li class="small"><b>ทำบนคอมพิวเตอร์ ครั้งเดียว ~5 นาที</b> ใช้บัญชี Google ที่จะเก็บชีตและสลิป</li>
         <li><a class="btn primary sm" href="https://sheets.new" target="_blank" rel="noopener">① 📗 สร้างชีตใหม่ ↗</a>
           <span class="small">ตั้งชื่อ เช่น “จุกจิก คาฟ่า – บัญชี”</span></li>
@@ -621,7 +625,7 @@ function sheetCard() {
         <li><span class="small">③ ปุ่ม <b>การทำให้ใช้งานได้ › การทำให้ใช้งานได้รายการใหม่</b> › ⚙️ เลือก <b>เว็บแอป</b> ›
           เรียกใช้ในฐานะ <b>ฉัน</b> · ผู้มีสิทธิ์เข้าถึง <b>ทุกคน</b> › ทำให้ใช้งานได้ › <b>ให้สิทธิ์</b> (ขั้นสูง › ไปที่… › อนุญาต)</span></li>
         <li><span class="small">④ กลับไปที่ชีต <b>รีเฟรชหน้า</b> › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> › กดปุ่ม
-          <b>“เปิดแอปจุกจิกและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ!</span></li>
+          <b>“เปิดแอปจุกจิกและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ!</span></li>`}
       </ol>
       <details class="more"><summary>มีลิงก์ web app อยู่แล้ว</summary>
         <input type="url" placeholder="https://script.google.com/macros/s/…/exec" data-input="sheeturl" autocomplete="off">
