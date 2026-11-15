@@ -75,6 +75,56 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 > ไม่ต้องเอาลิงก์ web app ไปไว้ใน GitHub แอปจะจับคู่กับสคริปต์ด้วยรหัสลับตอนกดเชื่อมต่อครั้งแรก
 > ถ้าต้องการจับคู่ใหม่ ให้รันฟังก์ชัน `resetPairing` ในหน้าแก้ไขสคริปต์
 
+## ขั้นที่ 5 — สั่งผ่าน LINE OA (ไม่บังคับ)
+
+ลูกค้าแอดไลน์ร้าน › กดเมนูด้านล่างแชท › เลือกน้ำ › เลือก **รับเลย** หรือ **นัดเวลารับ** › จ่าย **พร้อมเพย์** (QR ยอดพอดี) หรือ **เงินสดตอนรับ**
+ออเดอร์เด้งเข้าแอปที่ 🛒 ขาย › **ออเดอร์ LINE** พร้อมเสียงเตือน กด *รับออเดอร์ › ทำเสร็จ (LINE แจ้งลูกค้าเอง) › รับเงิน/ส่งมอบ*
+ส่งมอบแล้วยอดขายลงบัญชีอัตโนมัติ (นับในรายงานหน้าขาย ปิดยอด และ Google Sheet เหมือนบิลหน้าร้าน)
+
+```
+ลูกค้า LINE ── LIFF (liff/ บน GitHub Pages) ──► Cloud Functions "api" ──► Firestore ◄── แอป POS (เจ้าของร้าน)
+LINE Platform ── webhook ──────────────────────► Cloud Functions "webhook"     │
+                 ◄── push "น้ำพร้อมแล้ว" ─────── Cloud Functions "onOrderUpdated" ◄┘
+```
+
+### 5.1 สร้างบัญชี LINE
+1. **manager.line.biz** › สร้าง LINE Official Account ของร้าน
+2. ตั้งค่า › **Messaging API** › เปิดใช้งาน (สร้าง Provider ใหม่ชื่อร้าน)
+3. **developers.line.biz** › เลือก Provider › channel Messaging API:
+   - แท็บ Basic settings: คัดลอก **Channel secret**
+   - แท็บ Messaging API: กด Issue **Channel access token (long-lived)** แล้วคัดลอก
+4. Provider เดียวกัน › **Create a new channel › LINE Login** (ประเภท Web app) › คัดลอก **Channel ID**
+5. ใน LINE Login channel › แท็บ **LIFF** › Add:
+   - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/jukjik-kaa/liff/index.html`
+   - Scopes: `openid`, `profile`, `chat_message.write` · Bot link feature: **On (Aggressive)** แล้วเลือกบัญชี OA ของร้าน
+   - คัดลอก **LIFF ID** (เช่น `2001234567-AbCdEfGh`)
+
+### 5.2 Deploy Cloud Functions (ต้องใช้ Firebase แผน Blaze)
+1. Firebase Console › ⚙️ › Usage and billing › เปลี่ยนเป็น **Blaze** › ตั้ง **Budget alert** (เช่น ฿50/เดือน)
+   ร้านเดียวใช้ไม่เกินโควตาฟรีของ Cloud Functions แทบแน่นอน
+2. บนคอม: `npm i -g firebase-tools` › `firebase login` › ในโฟลเดอร์ repo: `firebase use jukjik-kaa-4fae`
+3. `cp functions/.env.example functions/.env` แล้วใส่ `LINE_LOGIN_CHANNEL_ID` และ `LIFF_ID` (ไฟล์นี้ไม่ใช่ความลับ commit ได้)
+4. ใส่ค่าลับ (**ห้ามใส่ในไฟล์ใน repo เพราะ repo เป็น public**):
+   `firebase functions:secrets:set LINE_CHANNEL_SECRET` และ `firebase functions:secrets:set LINE_CHANNEL_ACCESS_TOKEN`
+5. `cd functions && npm install && npm test && cd ..` › `firebase deploy --only functions,firestore:indexes`
+6. จะได้ URL 2 ตัว:
+   - `…/webhook` › ใส่ใน Messaging API channel › **Webhook URL** › Verify › เปิด **Use webhook**
+   - `…/api` › ตรวจว่าตรงกับ `API_BASE` ใน `liff/config.js`
+7. แก้ `liff/config.js` ใส่ `LIFF_ID` › commit ขึ้น GitHub
+
+### 5.3 ตั้งค่า OA
+- LINE OA Manager › ตอบกลับอัตโนมัติ: **ปิด** "ข้อความตอบกลับอัตโนมัติ" (บอทตอบเอง) แต่เปิด **แชท** ไว้ได้ เจ้าของยังคุยกับลูกค้าเองได้
+- **Rich menu** (เมนูด้านล่างแชท) › สร้างปุ่ม: 🥤 สั่งน้ำ = ลิงก์ `https://liff.line.me/<LIFF ID>` · 🧾 คิวของฉัน = ข้อความ `คิว` · ⭐ แต้มสะสม = ข้อความ `แต้ม`
+- ในแอป › ⚙️ ตั้งค่า › **💚 สั่งผ่าน LINE OA** › ตั้งเวลาเปิด–ปิด เวลาทำ › **เปิดรับออเดอร์**
+- ตั้ง **พร้อมเพย์ร้าน** ไว้ด้วย ลูกค้าถึงเลือกโอนได้
+
+### สิ่งที่ควรรู้
+- **โควตาข้อความ:** แผนฟรีของ LINE OA ส่ง push ได้จำกัดต่อเดือน (เช็กแพ็กเกจปัจจุบันใน OA Manager) ระบบใช้ push แค่ตอน *น้ำพร้อม* และ *ร้านยกเลิก*
+  ส่วนยืนยันออเดอร์ใช้ reply (ฟรี) และหน้า LIFF อัปเดตสถานะคิวเอง ถ้าออเดอร์เยอะจนเกินโควตา ให้อัปแพ็กเกจ OA
+- **เช็กเงินโอน:** พร้อมเพย์บัญชีบุคคลไม่มีระบบแจ้งเงินเข้า ลูกค้ากด "โอนแล้ว" แล้วร้านเช็กในแอปธนาคารก่อนกด **✓ เงินเข้าแล้ว**
+- ลูกค้ามีออเดอร์ค้างได้ไม่เกิน 2 รายการ และนัดรับได้เฉพาะวันนี้ในเวลาเปิดร้าน ราคาคิดใหม่ที่เซิร์ฟเวอร์จากเมนูร้านทุกครั้ง (ลูกค้าไม่เห็นต้นทุน)
+- คีย์เวิร์ดที่บอทตอบ: `เมนู`/`สั่ง` · `คิว`/`สถานะ` · `แต้ม` ข้อความอื่นปล่อยให้ร้านตอบเองในแชท
+
 ---
 
 ## ไฟล์ในโปรเจกต์
@@ -91,6 +141,8 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 | `sheets.js` | ส่งสำเนาข้อมูลลง Google Sheet |
 | `qr.js` | อ่าน QR บนสลิปในเครื่อง (เลขอ้างอิงธนาคาร กันสลิปซ้ำ) |
 | `apps-script/` | สคริปต์ฝั่ง Google Sheet (Apps Script) |
+| `liff/` | หน้าสั่งน้ำใน LINE (LIFF) ของลูกค้า |
+| `functions/` | Cloud Functions: API ของหน้า LIFF, LINE webhook, แจ้งลูกค้า/บันทึกยอดเมื่อออเดอร์เปลี่ยนสถานะ |
 | `firebase-config.js` | ค่า Firebase ของคุณ |
 | `firestore.rules` | กฎความปลอดภัยฐานข้อมูล |
 | `sw.js`, `manifest.webmanifest`, `icons/` | ทำให้ติดตั้งเป็นแอปและใช้ออฟไลน์ได้ |

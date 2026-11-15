@@ -98,6 +98,7 @@ export const state = {
   syncError: '',
   user: null,
   tx: [],
+  orders: [],               // LINE OA orders still open (new / accepted / ready), cloud only
   settings: defaultSettings(),
   localPendingCount: 0,     // local items that can be uploaded after sign-in
   access: 'ok',             // ok | verify (email not verified yet) | denied (email not on the allow list)
@@ -218,6 +219,11 @@ function attachUser(user) {
       emit();
     }, err => console.warn('access', err)));
   }
+  // LINE OA orders that still need the shop (finished/cancelled ones drop out of this list)
+  unsubs.push(F.onSnapshot(F.query(F.collection(db, 'users', dataUid, 'orders'), F.where('status', 'in', ['new', 'accepted', 'ready'])), snap => {
+    state.orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    emit();
+  }, err => console.warn('orders', err)));
   unsubs.push(F.onSnapshot(F.doc(db, 'users', dataUid), snap => {
     const s = snap.exists() ? snap.data().settings : null;
     state.settings = { ...defaultSettings(), catVersion: s?.categories ? 1 : CAT_VERSION, ...(s || {}) };
@@ -234,6 +240,7 @@ function detachUser() {
   state.access = 'ok';
   state.isOwner = false;
   state.allowList = [];
+  state.orders = [];
   state.syncStatus = state.cloudConfigured ? 'signed-out' : 'local';
   loadLocal();
   emit();
@@ -293,6 +300,12 @@ export function deleteTx(id) {
   if (state.tx.find(x => x.id === id)?.hasSlip) deleteSlipImage(id);
   if (state.mode === 'cloud') fb.F.deleteDoc(fb.F.doc(...userPath('tx', id))).catch(syncFail);
   else { state.tx = state.tx.filter(t => t.id !== id); writeLocal(); }
+}
+
+// LINE OA order: the shop moves it along (accepted → ready → done); Cloud Functions message the customer and record the sale
+export async function updateOrder(id, patch) {
+  if (state.mode !== 'cloud') throw new Error('ต้องล็อกอินก่อน');
+  await fb.F.updateDoc(fb.F.doc(...userPath('orders', id)), clean({ ...patch, updatedAt: Date.now() }));
 }
 
 export function saveSettings(patch) {

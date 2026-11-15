@@ -1,0 +1,23 @@
+/* LIFF ordering page: no tab bar, so the cart bar and toast sit at the bottom */
+body.liff .app { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+body.liff .cart-bar { bottom: calc(14px + env(safe-area-inset-bottom)); }
+body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0 12px; }
+.shop-head h1 { font-size: 1.3rem; }
+.shop-head small { color: var(--muted); }
+.stamp { background: var(--surface-2); border-radius: 99px; padding: 6px 12px; font-size: .85rem; white-space: nowrap; }
+.closed { background: var(--surface-2); border-radius: 14px; padding: 12px; margin-bottom: 12px; color: var(--text-2); }
+.time-pick { width: 100%; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.queue-no { text-align: center; padding: 6px 0 2px; }
+.queue-no small { color: var(--muted); }
+.queue-no b { display: block; font-family: var(--display); font-size: 3.4rem; font-weight: 600; line-height: 1.05; color: var(--accent); }
+.steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-size: .8rem; color: var(--muted); }
+.steps li::before { content: ''; display: block; height: 6px; border-radius: 3px; background: var(--surface-2); margin-bottom: 6px; }
+.steps li.on { color: var(--text); font-weight: 600; }
+.steps li.on::before { background: var(--accent); }
+.status-line { text-align: center; font-family: var(--display); font-size: 1.15rem; margin: 6px 0 0; }
+.status-line.ready { color: var(--income); }
+.status-line.cancelled { color: var(--danger); }
+.order-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.order-list button { width: 100%; display: flex; justify-content: space-between; gap: 10px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px; cursor: pointer; }
+.btn-col { display: grid; gap: 10px; }
