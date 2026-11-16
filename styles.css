@@ -499,3 +499,5 @@ details.more-settings section + section { margin-top: 14px; }
 .push-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; }
 .push-row p { flex: 1 1 220px; }
 .push-row.on { background: color-mix(in srgb, #06C755 12%, var(--surface)); }
+.dev-contact .btn { text-decoration: none; }
+a.btn.line-btn { color: #fff; }
