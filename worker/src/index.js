@@ -186,6 +186,8 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       await db.commit(writes);
     });
     // customer messages (push counts against the OA's monthly quota: only these two)
+    // the customer hears from the shop only once it has accepted the order (push: counts against the OA's monthly quota)
+    if (action === 'accept') await line('message/push', { to: after.lineUserId, messages: [orderBubble(id, after, 'ร้านรับออเดอร์แล้ว ✅')] }).catch(e => console.error(e));
     if (action === 'ready') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
       text: `${Shop.readyText(after)}\n${itemsText(after)}\n${after.paid ? 'ชำระแล้ว ✅' : `ยอด ${baht(after.total)} · ${payText(after)}`}` }] }).catch(e => console.error(e));
     if (action === 'cancel') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
@@ -205,9 +207,9 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const text = ev.message.text.trim();
     const mine = async () => (await ordersOn(Shop.bkk().day)).filter(d => d.data.lineUserId === userId);
     const m = /ออเดอร์\s*(L\d{3,})/.exec(text);
-    if (m) { // sent by the LIFF page after ordering: answering with reply is free
+    if (m) { // customer asks about an order by its number: answering with reply is free
       const d = (await mine()).find(x => x.data.no === m[1]);
-      return d ? reply(orderBubble(d.id, d.data, 'ร้านได้รับออเดอร์แล้ว 🧾')) : undefined;
+      return d ? reply(orderBubble(d.id, d.data, 'สถานะออเดอร์')) : undefined;
     }
     if (/คิว|สถานะ|ออเดอร์/.test(text)) {
       const open = (await mine()).filter(d => Shop.OPEN_STATUSES.includes(d.data.status));

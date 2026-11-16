@@ -155,12 +155,16 @@ test('full flow: order → accept → ready (push) → cash → sale + stamps', 
   assert.equal((await call('POST', `/shop/orders/${id}`, { token: await firebaseToken({ email: 'owner@shop.com', email_verified: false }), body: { action: 'accept' } })).status, 403);
   assert.equal((await call('POST', `/shop/orders/${id}`, { token: await firebaseToken({ email: 'owner@shop.com', aud: 'other' }), body: { action: 'accept' } })).status, 403);
 
+  assert.equal(pushes.length, 0); // placing the order tells the customer nothing yet
   assert.equal((await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'accept' } })).data.status, 'accepted');
+  assert.equal(pushes.length, 1); // the shop accepted: now the customer gets a card
+  assert.equal(pushes[0].to, 'UA');
+  assert.equal(pushes[0].messages[0].type, 'flex');
+  assert.match(pushes[0].messages[0].altText, /ร้านรับออเดอร์แล้ว ✅ L001/);
   assert.equal((await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'done' } })).status, 409); // not paid yet
   await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'ready' } });
-  assert.equal(pushes.length, 1);
-  assert.equal(pushes[0].to, 'UA');
-  assert.match(pushes[0].messages[0].text, /L001 พร้อมรับแล้ว/);
+  assert.equal(pushes.length, 2);
+  assert.match(pushes[1].messages[0].text, /L001 พร้อมรับแล้ว/);
 
   const done = await call('POST', `/shop/orders/${id}`, { token: owner, body: { action: 'cash' } });
   assert.deepEqual(done.data, { ok: true, status: 'done', paid: true });

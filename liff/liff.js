@@ -282,8 +282,7 @@ async function placeOrder() {
     try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); localStorage.setItem('kaa_fulfil', JSON.stringify({ ...saved, phone: ui.fulfil.phone || saved.phone, [ui.fulfil.mode]: ui.fulfil.detail })); } catch {}
     ui.cart = []; ui.note = '';
     try { sessionStorage.removeItem('kaa_cart'); } catch {}
-    // a message from the customer lets the shop's bot answer with a free reply (push messages count against the quota)
-    try { if (liff.isInClient() && liff.getContext()?.type === 'utou') await liff.sendMessages([{ type: 'text', text: `🧾 ออเดอร์ ${o.no}` }]); } catch {}
+    // no chat message here: the customer is told in LINE once the shop accepts the order
     ui.order = o;
     ui.busy = false;
     openOrder(o.id);
