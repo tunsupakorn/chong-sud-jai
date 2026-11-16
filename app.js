@@ -840,8 +840,8 @@ async function showQR(el, amount) {
 }
 
 // ==================== LINE OA: ออเดอร์จากลูกค้า ====================
-const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(state.settings.line || {}) });
-const FULFIL = { pickup: '🛍️ มารับเองที่ร้าน', delivery: '🛵 ให้ร้านไปส่ง' };
+const lineCfg = () => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', deliveryMin: 100, ...(state.settings.line || {}) });
+const FULFIL = { pickup: '🛍️ รับที่ร้าน', delivery: '🛵 จัดส่ง' };
 const lineModes = () => (Array.isArray(lineCfg().modes) && lineCfg().modes.length ? lineCfg().modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
 const ORDER_STATUS = { new: '🆕 ออเดอร์ใหม่', accepted: '🧑‍🍳 กำลังทำ', ready: '☕ รอลูกค้ารับ' };
 const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':').map(Number); return h * 60 + m; };
@@ -873,12 +873,13 @@ function lineCard() {
     <div class="seg"><button aria-selected="${c.open}" data-action="line-open" data-v="1">🟢 เปิดรับออเดอร์</button>
       <button aria-selected="${!c.open}" data-action="line-open" data-v="">⏸️ ปิดรับ</button></div>
     <p class="small muted" style="margin:12px 0 4px">วิธีรับที่ให้ลูกค้าเลือก</p>
-    <div class="chips">${Object.entries(FULFIL).map(([k, l]) => `<button class="chip ${lineModes().includes(k) ? 'on' : ''}" data-action="line-mode" data-m="${k}" aria-pressed="${lineModes().includes(k)}">${l}</button>`).join('')}</div>
+    <div class="chips">${Object.entries(FULFIL).map(([k, l]) => { const on = lineModes().includes(k); return `<button class="chip ${on ? 'on' : 'mode-off'}" data-action="line-mode" data-m="${k}" aria-pressed="${on}">${on ? '✓' : '✕'} ${l} · ${on ? 'เปิด' : 'ปิด'}</button>`; }).join('')}</div>
     <div class="line-grid">
       <label>เปิด<input type="time" value="${esc(c.from)}" data-line="from"></label>
       <label>ปิด<input type="time" value="${esc(c.to)}" data-line="to"></label>
       <label>เวลาทำ (นาที)<input type="number" inputmode="numeric" min="0" max="120" value="${esc(c.prep)}" data-line="prep"></label>
       <label>สะสมครบ (แก้ว)<input type="number" inputmode="numeric" min="1" max="99" value="${esc(c.stampGoal)}" data-line="stampGoal"></label>
+      ${lineModes().includes('delivery') ? `<label>จัดส่งขั้นต่ำ (บาท)<input type="number" inputmode="numeric" min="0" max="5000" step="10" value="${esc(c.deliveryMin)}" data-line="deliveryMin"></label>` : ''}
     </div>
     <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิก คาฟ่า" value="${esc(c.name || '')}" data-line="name"></label>
     <label class="line-note">ประกาศถึงลูกค้า<input maxlength="120" placeholder="เช่น วันนี้มะม่วงหมด" value="${esc(c.note)}" data-line="note"></label>
@@ -1969,7 +1970,7 @@ function saveLineField(k, raw) {
     saveLine({ from, to });
     return toast(`บันทึกเวลาแล้ว · เปิด ${from}–${to} น.`);
   }
-  const val = k === 'prep' ? Math.max(0, Math.min(120, Number(v) || 0)) : k === 'stampGoal' ? Math.max(1, Math.min(99, Number(v) || 10)) : v.slice(0, k === 'name' ? 40 : 120);
+  const val = k === 'deliveryMin' ? Math.max(0, Math.min(5000, Math.round(Number(v) || 0))) : k === 'prep' ? Math.max(0, Math.min(120, Number(v) || 0)) : k === 'stampGoal' ? Math.max(1, Math.min(99, Number(v) || 10)) : v.slice(0, k === 'name' ? 40 : 120);
   saveLine({ [k]: val });
   toast('บันทึกแล้ว');
 }

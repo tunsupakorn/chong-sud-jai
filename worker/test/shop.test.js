@@ -91,3 +91,12 @@ test('fulfilment: modes, required details, ready text', () => {
   assert.match(Shop.readyText({ no: 'L001', fulfil: { mode: 'delivery' } }), /ออกไปส่ง/);
   assert.match(Shop.readyText({ no: 'L001' }), /พร้อมรับ/);
 });
+
+test('delivery needs the minimum order (default ฿100)', () => {
+  const cfg = Shop.lineSettings({});
+  const f = { mode: 'delivery', detail: 'โรงพยาบาล ชั้น 2', phone: '0812345678' };
+  assert.throws(() => Shop.checkFulfil(cfg, f, 95), /ครบ ฿100 \(ขาดอีก ฿5\)/);
+  assert.equal(Shop.checkFulfil(cfg, f, 100).mode, 'delivery');
+  assert.equal(Shop.checkFulfil(cfg, { mode: 'pickup' }, 35).mode, 'pickup');
+  assert.equal(Shop.checkFulfil({ ...cfg, deliveryMin: 0 }, f, 35).mode, 'delivery');
+});

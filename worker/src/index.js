@@ -71,7 +71,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   async function menu() {
     const { settings, cfg, menu, name } = await loadShop();
     const now = Shop.bkk();
-    return { shop: { name, modes: Shop.fulfilModes(cfg), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
+    return { shop: { name, modes: Shop.fulfilModes(cfg), deliveryMin: Math.max(0, Number(cfg.deliveryMin) || 0), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
       now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to) }, menu: Shop.publicMenu(menu) };
   }
 
@@ -80,7 +80,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const now = Shop.bkk();
     const pickup = Shop.checkPickup(cfg, body?.pickup, now);
     const priced = Shop.priceCart(menu, body?.items);
-    const fulfil = Shop.checkFulfil(cfg, body?.fulfil);
+    const fulfil = Shop.checkFulfil(cfg, body?.fulfil, priced.total);
     const payMethod = body?.payMethod === 'promptpay' ? 'promptpay' : body?.payMethod === 'cash' ? 'cash' : null;
     if (!payMethod) throw new Shop.OrderError('เลือกวิธีชำระเงิน');
     if (payMethod === 'promptpay' && !settings.promptpay) throw new Shop.OrderError('ร้านยังไม่เปิดรับพร้อมเพย์ เลือกเงินสดตอนรับ', 409);

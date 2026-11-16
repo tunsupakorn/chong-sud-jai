@@ -8,7 +8,7 @@ export const MAX_LINES = 30;
 export const MAX_QTY = 20;
 
 // LINE ordering settings live in users/{shop}.settings.line
-export const lineSettings = s => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', ...(s?.line || {}) });
+export const lineSettings = s => ({ open: false, from: '09:00', to: '20:00', prep: 10, stampGoal: 10, note: '', deliveryMin: 100, ...(s?.line || {}) });
 
 // Thailand has no daylight saving: Bangkok = UTC+7 all year.
 export function bkk(d = new Date()) {
@@ -132,10 +132,12 @@ export const FULFIL = {
   delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵' },
 };
 export const fulfilModes = cfg => (Array.isArray(cfg.modes) && cfg.modes.length ? cfg.modes : Object.keys(FULFIL)).filter(k => FULFIL[k]);
-export function checkFulfil(cfg, f) {
+export function checkFulfil(cfg, f, total = Infinity) {
   const modes = fulfilModes(cfg);
   const mode = f?.mode || modes[0];
   if (!modes.includes(mode)) throw new OrderError('ร้านไม่ได้เปิดวิธีรับแบบนี้', 409);
+  const min = Math.max(0, Number(cfg.deliveryMin) || 0);
+  if (mode === 'delivery' && total < min) throw new OrderError(`จัดส่งเมื่อสั่งครบ ฿${min} (ขาดอีก ฿${min - total})`, 409);
   const detail = String(f?.detail || '').trim().slice(0, 200);
   const phone = String(f?.phone || '').replace(/\D/g, '').slice(0, 10);
   if (mode === 'delivery') {
