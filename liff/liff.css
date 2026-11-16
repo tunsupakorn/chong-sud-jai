@@ -56,3 +56,4 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .promo { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #CFE6FF, #E6DCFF); }
 .promo img { display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; }
 .promo p { margin: 0; padding: 10px 14px; font-family: var(--display); font-size: 1.05rem; color: #1F2A44; }
+.btn-col a.btn { display: flex; justify-content: center; text-decoration: none; color: var(--text); }

@@ -43,6 +43,8 @@ async function fakeFetch(url, opts = {}) {
     const t = new URLSearchParams(body).get('id_token');
     return t?.startsWith('cust-') ? reply({ sub: 'U' + t.slice(5), name: 'ลูกค้า ' + t.slice(5) }) : reply({ error: 'invalid' }, 400);
   }
+  if (url === 'https://api.line.me/v2/bot/message/quota') return reply({ type: 'limited', value: 300 });
+  if (url === 'https://api.line.me/v2/bot/message/quota/consumption') return reply({ totalUsage: 16 });
   if (url.startsWith('https://api.line.me/v2/bot/message/')) {
     assert.equal(opts.headers.Authorization, 'Bearer ltok');
     (url.endsWith('push') ? pushes : replies).push(JSON.parse(body));
@@ -353,4 +355,34 @@ test('"เมนู" in chat: a carousel with photo cards first, sold out left o
   assert.equal(cards[0].footer.contents[0].action.uri, 'https://liff.line.me/liff-1?item=m_thaitea');
   docs[SHOP].data.settings.line.banner.on = false;
   assert.equal((await call('GET', '/menu')).data.shop.banner, undefined);
+});
+
+test('chat button message: no bot reply, the shop\'s devices are notified; quota; accept notice can be switched off', async () => {
+  const vk = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  app = createApp({ ...env, VAPID_PRIVATE_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', vk.privateKey)), BOT_BASIC_ID: '@157zqolw' }, fakeFetch);
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  const sub = await call('POST', '/shop/push', { token: owner, body: { endpoint: 'https://push.test/tablet' } });
+  const o = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
+  assert.equal((await call('GET', '/menu')).data.shop.oaId, '@157zqolw');
+  await new Promise(r => setTimeout(r, 50)); // let the "new order" notification finish first
+  pushed = []; replies = [];
+  const raw = JSON.stringify({ events: [{ type: 'message', replyToken: 'r1', source: { userId: 'UA' }, message: { type: 'text', text: `💬 ${o.data.no}: ขอหวานน้อยได้ไหมคะ` } }] });
+  const key = await crypto.subtle.importKey('raw', enc.encode('sec'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Buffer.from(await crypto.subtle.sign('HMAC', key, enc.encode(raw))).toString('base64');
+  await app(new Request('https://w.test/webhook', { method: 'POST', body: raw, headers: { 'x-line-signature': sig } }));
+  assert.equal(replies.length, 0);
+  assert.equal(pushed.length, 1);
+  const peek = (await call('GET', `/push/peek/${sub.data.id}`)).data;
+  assert.equal(peek.title, '💬 ลูกค้าทักแชท · L001 · ลูกค้า A');
+  assert.equal(peek.body, 'ขอหวานน้อยได้ไหมคะ');
+  // quota for the settings page (owner only)
+  assert.equal((await call('GET', '/shop/quota', { token: await firebaseToken({ email: 'x@y.z' }) })).status, 403);
+  assert.deepEqual((await call('GET', '/shop/quota', { token: owner })).data, { type: 'limited', limit: 300, used: 16, notifyAccept: true });
+  // switched off: accepting sends nothing to the customer
+  docs[SHOP].data.settings.line.notifyAccept = false;
+  pushes = [];
+  await call('POST', `/shop/orders/${o.data.id}`, { token: owner, body: { action: 'accept' } });
+  assert.equal(pushes.length, 0);
+  await call('POST', `/shop/orders/${o.data.id}`, { token: owner, body: { action: 'ready' } });
+  assert.equal(pushes.length, 1);
 });

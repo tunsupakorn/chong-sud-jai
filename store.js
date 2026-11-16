@@ -420,6 +420,14 @@ async function shopPost(path, body) {
   if (!res.ok) throw new Error(data.error || `ระบบ LINE ตอบกลับ ${res.status}`);
   return data;
 }
+// LINE push quota this month + whether the "accepted" notice is on (owner only, via the Worker)
+export async function lineQuota() {
+  if (!fb?.auth.currentUser || !LINE_API) throw new Error('ต้องล็อกอินก่อน');
+  const res = await fetch(`${LINE_API.replace(/\/$/, '')}/shop/quota`, { headers: { Authorization: `Bearer ${await fb.auth.currentUser.getIdToken()}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `ระบบ LINE ตอบกลับ ${res.status}`);
+  return data;
+}
 const b64ToBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
 export async function pushEnable() {
   if (!VAPID_KEY || !LINE_API) throw new Error('ยังไม่ได้ตั้งค่าการแจ้งเตือน');
