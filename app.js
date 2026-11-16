@@ -487,6 +487,13 @@ function viewSettings() {
       </div>
       <button class="link" data-action="show-ob">ดูหน้าแนะนำแอปอีกครั้ง</button>
     </section>
+    <section class="card dev-contact"><h3>🛠️ ติดต่อผู้พัฒนา</h3>
+      <p class="muted small">พบปัญหา อยากเพิ่มฟีเจอร์ หรือสอบถามการใช้งาน ติดต่อได้ที่</p>
+      <div class="row gap wrap">
+        <a class="btn line-btn sm" href="https://line.me/ti/p/~t36abz" target="_blank" rel="noopener">💬 LINE ID: t36abz</a>
+        <a class="btn ghost sm" href="mailto:supakorn.nty@gmail.com?subject=${encodeURIComponent('จุกจิกการค้า')}">✉️ supakorn.nty@gmail.com</a>
+      </div>
+    </section>
     <p class="center muted small pad">จุกจิกการค้า v1.1</p>`;
 }
 
