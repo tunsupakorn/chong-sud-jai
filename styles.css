@@ -507,3 +507,10 @@ a.btn.line-btn { color: #fff; }
 .mn-photo img, .mn-photo-empty { width: 84px; height: 84px; border-radius: 16px; object-fit: cover; flex: none; background: var(--surface-2); display: grid; place-items: center; font-size: 2.2rem; }
 .mn-photo .btn { cursor: pointer; }
 .opt-tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 1px 8px; margin: 2px 2px 0 0; border-radius: 99px; background: color-mix(in srgb, var(--orange) 16%, var(--surface)); color: var(--text); }
+/* sold out */
+.menu-btn.sold { opacity: .5; }
+.menu-btn.sold .m-emoji, .menu-btn.sold .m-photo { filter: grayscale(1); }
+.sold-tag { font-size: .8rem; font-weight: 700; color: #fff; background: var(--danger); border-radius: 99px; padding: 1px 10px; }
+.top-chip.sold { opacity: .5; text-decoration: line-through; }
+.sold-bar { margin: 10px 0; min-height: 36px; gap: 8px; }
+.sold-bar.on { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); border-radius: 14px; padding: 6px 6px 6px 12px; }

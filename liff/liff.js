@@ -46,7 +46,9 @@ const lineName = (m, s) => s && stylesOf(m).length > 1 ? `${m.name} ${STYLES[s].
 const item = id => ui.menu.find(m => m.id === id);
 const lines = () => ui.cart.map(l => ({ ...l, m: item(l.id) })).filter(l => l.m).map(l => ({ ...l, name: lineName(l.m, l.style), price: priceOf(l.m, l.style) }));
 const total = () => lines().reduce((s, l) => s + l.price * l.qty, 0);
-const cups = () => lines().filter(l => l.m.group !== 'topping').reduce((s, l) => s + l.qty, 0);
+const cups = () => lines().filter(l => l.m.group !== 'topping' && l.m.group !== 'snack').reduce((s, l) => s + l.qty, 0);
+const pieces = () => lines().filter(l => l.m.group === 'snack').reduce((s, l) => s + l.qty, 0);
+const countText = () => [cups() ? `${cups()} แก้ว` : '', pieces() ? `${pieces()} ชิ้น` : ''].filter(Boolean).join(' · ') || '0 แก้ว';
 // drink options: sweetness and ice on the side (the Worker checks them again)
 const SWEET = [0, 25, 50, 100];
 const keyOf = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.ice ? 1 : 0}`;
@@ -91,20 +93,22 @@ function viewMenu() {
       : !canOrder ? `<p class="closed">ร้านปิดแล้ววันนี้ พรุ่งนี้เปิด ${esc(s.from)} น.</p>`
       : !s.acceptingNow ? `<p class="closed">⏰ ยังไม่ถึงเวลาเปิด สั่งล่วงหน้าแล้วนัดเวลารับได้</p>` : ''}
     ${s.note ? `<p class="g-note">📣 ${esc(s.note)}</p>` : ''}
-    <div class="seg sell-tabs" style="margin:12px 0">${[['all', 'ทั้งหมด'], ['fruit', '🍓 ปั่นผลไม้'], ['drink', '🧋 ชา·กาแฟ·นม']].map(([k, l]) =>
+    <div class="seg sell-tabs" style="margin:12px 0">${[['all', 'ทั้งหมด'], ['fruit', '🍓 ปั่นผลไม้'], ['drink', '🧋 ชา·กาแฟ·นม'],
+      ...(ui.menu.some(m => m.group === 'snack') ? [['snack', '🍰 ขนม']] : [])].map(([k, l]) =>
       `<button aria-selected="${ui.tab === k}" data-action="tab" data-t="${k}">${l}</button>`).join('')}</div>
     <div class="menu-grid">${drinks.map(m => { const q = qtyOf(m.id); return `<div class="menu-cell">
-      <button class="menu-btn ${q ? 'in' : ''}" data-action="add" data-id="${esc(m.id)}" ${canOrder ? '' : 'disabled'}>
-        ${m.photo ? `<img class="m-photo" src="${photoSrc(m)}" alt="" loading="lazy">` : `<span class="m-emoji">${esc(m.emoji)}</span>`}<span class="m-name">${esc(m.name)}</span><b class="num">${priceRange(m)}</b>
+      <button class="menu-btn ${q ? 'in' : ''} ${m.soldOut ? 'sold' : ''}" data-action="add" data-id="${esc(m.id)}" ${canOrder && !m.soldOut ? '' : 'disabled'}>
+        ${m.photo ? `<img class="m-photo" src="${photoSrc(m)}" alt="" loading="lazy">` : `<span class="m-emoji">${esc(m.emoji)}</span>`}<span class="m-name">${esc(m.name)}</span>
+        ${m.soldOut ? '<span class="sold-tag">หมด</span>' : `<b class="num">${priceRange(m)}</b>`}
         ${q ? `<i class="m-qty">${q}</i>` : ''}</button>
       ${q ? `<button class="m-minus" data-action="undo" data-id="${esc(m.id)}" aria-label="ลด ${esc(m.name)}">−</button>` : ''}</div>`; }).join('')
       || '<p class="muted center pad">ยังไม่มีเมนู</p>'}</div>
     ${toppings.length ? `<div class="top-row"><small class="muted">ท็อปปิ้ง</small>${toppings.map(m => { const q = qtyOf(m.id); return `<span class="top-wrap">
-      <button class="chip top-chip ${q ? 'in' : ''}" data-action="add" data-id="${esc(m.id)}" ${canOrder ? '' : 'disabled'}>${esc(m.emoji)} ${esc(m.name)} +${m.price}${q ? ` <b>×${q}</b>` : ''}</button>
+      <button class="chip top-chip ${q ? 'in' : ''} ${m.soldOut ? 'sold' : ''}" data-action="add" data-id="${esc(m.id)}" ${canOrder && !m.soldOut ? '' : 'disabled'}>${esc(m.emoji)} ${esc(m.name)} ${m.soldOut ? '· หมด' : `+${m.price}`}${q ? ` <b>×${q}</b>` : ''}</button>
       ${q ? `<button class="chip top-minus" data-action="undo" data-id="${esc(m.id)}" aria-label="ลด ${esc(m.name)}">−</button>` : ''}</span>`; }).join('')}</div>` : ''}
     <div class="cart-spacer"></div>
     ${ui.cart.length ? `<div class="cart-bar">
-      <button class="cart-sum" data-action="checkout"><b>🧾 ${cups()} แก้ว</b><span class="num">${baht(total())}</span></button>
+      <button class="cart-sum" data-action="checkout"><b>🧾 ${countText()}</b><span class="num">${baht(total())}</span></button>
       <button class="btn primary cart-pay" data-action="checkout">สั่งเลย ▶</button></div>` : ''}`;
 }
 
@@ -144,7 +148,7 @@ function viewCheckout() {
         <span class="qty"><button class="icon-btn" data-action="dec" data-k="${esc(keyOf(l))}" aria-label="ลด">−</button><b>${l.qty}</b>
         <button class="icon-btn" data-action="inc" data-k="${esc(keyOf(l))}" aria-label="เพิ่ม">+</button></span>
         <b class="num">${baht(l.price * l.qty)}</b></li>`).join('')}</ul>
-      <div class="close-total"><span>รวม ${cups()} แก้ว</span><b class="num">${baht(sum)}</b></div>
+      <div class="close-total"><span>รวม ${countText()}</span><b class="num">${baht(sum)}</b></div>
       ${short ? '<button class="btn ghost" style="width:100%;margin-top:10px" data-action="back">＋ เลือกเมนูเพิ่ม</button>' : ''}
     </section>
     <section class="card"><h3>⏰ ${mode === 'delivery' ? 'ส่งเมื่อไหร่' : 'มารับเมื่อไหร่'}</h3>
@@ -284,14 +288,14 @@ async function placeOrder() {
     openOrder(o.id);
   } catch (e) {
     ui.busy = false; ui.error = e.message; render();
-    if (/เมนู/.test(e.message)) loadMenu();
+    if (/เมนู|หมด/.test(e.message)) loadMenu().then(render).catch(() => {}); // sold out meanwhile: refresh and drop it from the cart
   }
 }
 
 async function loadMenu() {
   const data = await api('/menu');
   ui.shop = data.shop; ui.menu = data.menu;
-  ui.cart = ui.cart.filter(l => item(l.id));
+  ui.cart = ui.cart.filter(l => item(l.id) && !item(l.id).soldOut);
 }
 
 // ---------- QR picture to save, slip upload ----------
