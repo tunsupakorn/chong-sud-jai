@@ -23,7 +23,9 @@ export const stylesOf = m => m.group === 'topping' || !m.prices ? [] : Object.ke
 export const priceOf = (m, style) => (style && Number(m.prices?.[style])) || Number(m.price) || 0;
 // drink options: sweetness level and ice on the side (off for toppings, or when the shop unticks it for an item)
 export const SWEET = [0, 25, 50, 100];
-export const hasOpts = m => m.group !== 'topping' && m.opts !== false;
+// drinks: everything except toppings and snacks (ขนม·ของกิน)
+export const isDrink = m => m.group !== 'topping' && m.group !== 'snack';
+export const hasOpts = m => isDrink(m) && m.opts !== false;
 export const optText = i => [i.sweet !== undefined && i.sweet !== 100 ? `หวาน ${i.sweet}%` : '', i.iceSep ? 'แยกน้ำแข็ง' : ''].filter(Boolean).join(' · ');
 export const itemLabel = i => { const o = optText(i); return o ? `${i.name} (${o})` : i.name; };
 export const lineName = (m, style) => style && stylesOf(m).length > 1 ? `${m.name} ${STYLES[style]}` : m.name;
@@ -32,7 +34,7 @@ export const lineName = (m, style) => style && stylesOf(m).length > 1 ? `${m.nam
 export function publicMenu(menu = []) {
   return menu.filter(m => m.active !== false && priceOf(m, stylesOf(m)[0]) > 0)
     .map(m => ({ id: m.id, name: m.name, emoji: m.emoji || '🥤', group: m.group || 'drink',
-      ...(m.desc ? { desc: String(m.desc).slice(0, 120) } : {}), ...(m.photo ? { photo: m.photo } : {}), opts: hasOpts(m),
+      ...(m.desc ? { desc: String(m.desc).slice(0, 120) } : {}), ...(m.photo ? { photo: m.photo } : {}), opts: hasOpts(m), ...(m.soldOut ? { soldOut: true } : {}),
       ...(m.group === 'topping' ? { price: Number(m.price) || 0 } : { prices: Object.fromEntries(stylesOf(m).map(k => [k, Number(m.prices[k])])), price: priceOf(m, stylesOf(m)[0]) }) }));
 }
 
@@ -47,6 +49,7 @@ export function priceCart(menu, lines) {
   for (const l of lines) {
     const m = byId.get(String(l?.id || ''));
     if (!m) throw new OrderError('มีเมนูที่ร้านปิดขายไปแล้ว ลองโหลดเมนูใหม่', 409);
+    if (m.soldOut) throw new OrderError(`${m.name} หมดแล้ว ลองเลือกเมนูอื่นนะ`, 409);
     const st = stylesOf(m);
     const style = st.length ? String(l.style || st[0]) : '';
     if (st.length && !st.includes(style)) throw new OrderError(`${m.name} ไม่มีแบบนี้`, 409);
@@ -61,15 +64,16 @@ export function priceCart(menu, lines) {
     const key = `${m.id}|${style}|${opt.sweet ?? ''}|${opt.iceSep ? 1 : 0}`;
     const prev = merged.get(key);
     if (prev) prev.qty += qty;
-    else merged.set(key, { id: m.id, name: lineName(m, style), qty, price: priceOf(m, style), cost: Number(m.cost) || 0, topping: m.group === 'topping', ...(style ? { style } : {}), ...opt });
+    else merged.set(key, { id: m.id, name: lineName(m, style), qty, price: priceOf(m, style), cost: Number(m.cost) || 0, topping: m.group === 'topping', snack: m.group === 'snack', ...(style ? { style } : {}), ...opt });
   }
   const items = [...merged.values()];
   if (items.some(i => i.qty > MAX_QTY)) throw new OrderError('จำนวนเยอะเกินไป');
   if (items.some(i => !(i.price > 0))) throw new OrderError('มีเมนูที่ยังไม่ได้ตั้งราคา', 409);
-  const cups = items.filter(i => !i.topping).reduce((s, i) => s + i.qty, 0);
-  if (!cups) throw new OrderError('สั่งเครื่องดื่มอย่างน้อย 1 แก้ว');
+  const cups = items.filter(i => !i.topping && !i.snack).reduce((s, i) => s + i.qty, 0);
+  const pieces = items.filter(i => i.snack).reduce((s, i) => s + i.qty, 0);
+  if (!cups && !pieces) throw new OrderError('สั่งเครื่องดื่มหรือขนมอย่างน้อย 1 รายการ');
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  return { items: items.map(({ topping, ...i }) => i), cups, total };
+  return { items: items.map(({ topping, snack, ...i }) => i), cups, ...(pieces ? { pieces } : {}), total };
 }
 
 // pickup: { mode: 'asap' } or { mode: 'later', at: 'HH:MM' } (today only, within opening hours)

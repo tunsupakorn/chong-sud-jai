@@ -230,7 +230,7 @@ function posReport(list) {
   for (const t of bills) for (const i of t.items || []) {
     const key = `${i.id}|${i.style || ''}`;
     const m = menuItem(i.id);
-    const r = byItem[key] ||= { name: i.name, emoji: m?.emoji || '🥤', topping: m?.group === 'topping', qty: 0, sales: 0, cost: 0 };
+    const r = byItem[key] ||= { name: i.name, emoji: m?.emoji || '🥤', topping: m?.group === 'topping', unit: m?.group === 'topping' ? 'ที่' : m?.group === 'snack' ? 'ชิ้น' : 'แก้ว', qty: 0, sales: 0, cost: 0 };
     r.qty += Number(i.qty) || 0;
     r.sales += (Number(i.price) || 0) * (Number(i.qty) || 0);
     r.cost += (Number(i.cost) || 0) * (Number(i.qty) || 0);
@@ -240,7 +240,7 @@ function posReport(list) {
     .sort((a, b) => b[by] - a[by] || b.sales - a.sales);
   const max = Math.max(1, ...rows.map(r => Math.max(0, r[by])));
   const noCost = rows.some(r => !r.cost);
-  const fmt = (v, r) => by === 'qty' ? `${nf.format(v)} ${r.topping ? 'ที่' : 'แก้ว'}` : baht(v);
+  const fmt = (v, r) => by === 'qty' ? `${nf.format(v)} ${r.unit}` : baht(v);
   // hours: total sales per hour over the month
   const hours = Array(24).fill(0), hourBills = Array(24).fill(0);
   bills.forEach(t => { const h = Number(String(t.time || '').slice(0, 2)); if (h >= 0 && h < 24 && t.time) { hours[h] += amt(t); hourBills[h]++; } });
@@ -264,7 +264,7 @@ function posReport(list) {
         <div class="tm-head"><span class="tm-rank num">${i + 1}</span><span aria-hidden="true">${r.emoji}</span><span class="tm-name">${esc(r.name)}</span>
           <b class="num">${fmt(r[by], r)}</b></div>
         <div class="cb-track"><div class="cb-fill" style="width:${Math.max(2, Math.max(0, r[by]) / max * 100)}%"></div></div>
-        <small class="muted">${nf.format(r.qty)} ${r.topping ? 'ที่' : 'แก้ว'} · ขาย ${baht(r.sales)} · ต้นทุน ${r.cost ? baht(r.cost) : '—'} · กำไร <b class="${r.profit < 0 ? 'neg' : ''}">${baht(r.profit)}</b>${r.cost ? ` (${pct(r.margin)})` : ''}</small>
+        <small class="muted">${nf.format(r.qty)} ${r.unit} · ขาย ${baht(r.sales)} · ต้นทุน ${r.cost ? baht(r.cost) : '—'} · กำไร <b class="${r.profit < 0 ? 'neg' : ''}">${baht(r.profit)}</b>${r.cost ? ` (${pct(r.margin)})` : ''}</small>
       </li>`).join('')}</ol>
       ${rows.length > 10 ? `<button class="link small" data-action="top-all">${ui.topAll ? 'ย่อ' : `ดูทั้งหมด ${rows.length} รายการ`}</button>` : ''}
       ${noCost ? `<p class="small muted">💡 บางเมนูยังไม่ได้ใส่ต้นทุน/แก้ว กำไรจะดูสูงเกินจริง · ใส่ได้ที่ ⚙️ ตั้งค่า › 🧋 เมนูร้าน (มีผลกับบิลถัดไป)</p>` : ''}
@@ -1002,8 +1002,11 @@ function renderSheet() {
 
 // ==================== หน้าขาย (POS) ====================
 // a menu saved before drink styles existed: default drinks named "…ปั่น" get the new ปั่น/เย็น/ร้อน prices (their saved price stays the ปั่น price)
+// toppings and snacks have one price (no ปั่น/เย็น/ร้อน); drinks are counted in แก้ว, snacks in ชิ้น
+const single = g => g === 'topping' || g === 'snack';
+const isDrinkItem = m => !!m && !single(m.group);
 const upgradeItem = m => {
-  if (m.prices || m.group === 'topping') return m;
+  if (m.prices || single(m.group)) return m;
   const d = S.DEFAULT_MENU.find(x => x.id === m.id);
   if (d && d.group === 'drink' && m.name === d.name + 'ปั่น') return { ...m, name: d.name, prices: { ...d.prices, blend: m.price } };
   return m;
@@ -1013,7 +1016,7 @@ const menuItem = id => menu().find(m => m.id === id);
 const nowHM = () => new Date().toTimeString().slice(0, 5);
 // drink styles: each menu item may offer some of these, each with its own price (item.prices)
 const STYLES = S.STYLES;
-const stylesOf = m => m.group === 'topping' || !m.prices ? [] : Object.keys(STYLES).filter(k => Number(m.prices[k]) > 0);
+const stylesOf = m => single(m.group) || !m.prices ? [] : Object.keys(STYLES).filter(k => Number(m.prices[k]) > 0);
 const priceOf = (m, style) => (style && Number(m.prices?.[style])) || Number(m.price) || 0;
 const lineName = (m, style) => style && stylesOf(m).length > 1 ? `${m.name} ${STYLES[style].word}` : m.name;
 const priceRange = m => {
@@ -1025,7 +1028,9 @@ const priceRange = m => {
 const cartLines = () => ui.cart.map(l => ({ ...l, item: menuItem(l.id) })).filter(l => l.item)
   .map(l => ({ ...l, price: priceOf(l.item, l.style), name: lineName(l.item, l.style) }));
 const cartTotal = () => cartLines().reduce((s, l) => s + l.price * l.qty, 0);
-const cartCups = () => cartLines().filter(l => l.item.group !== 'topping').reduce((s, l) => s + l.qty, 0);
+const cartCups = () => cartLines().filter(l => isDrinkItem(l.item)).reduce((s, l) => s + l.qty, 0);
+const cartPieces = () => cartLines().filter(l => l.item.group === 'snack').reduce((s, l) => s + l.qty, 0);
+const cartCount = () => [cartCups() ? `${cartCups()} แก้ว` : '', cartPieces() ? `${cartPieces()} ชิ้น` : ''].filter(Boolean).join(' · ') || '0 แก้ว';
 const todaySales = () => state.tx.filter(t => t.source === 'pos' && t.date === todayISO())
   .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
@@ -1040,8 +1045,17 @@ function cartUndo(id) {
   const l = ui.cart.filter(x => x.id === id).sort((a, b) => (b.t || 0) - (a.t || 0))[0];
   if (l) cartAdd(id, -1, l.style || '');
 }
+function setSoldOut(id, soldOut) {
+  S.saveSettings({ menu: menu().map(m => {
+    if (m.id !== id) return m;
+    const { soldOut: _, ...rest } = m;
+    return soldOut ? { ...rest, soldOut: true } : rest;
+  }) });
+}
 function tapMenu(id) {
   const m = menuItem(id); if (!m) return;
+  if (ui.soldMode) { setSoldOut(id, !m.soldOut); toast(m.soldOut ? `${m.name} · มีของแล้ว ✅` : `${m.name} · หมด 🚫`); return render(); }
+  if (m.soldOut) return toast(`${m.name} หมดอยู่ · แตะ 🚫 ของหมด เพื่อเปิดขายอีกครั้ง`);
   const st = stylesOf(m);
   if (st.length > 1) return openStylePicker(m);
   cartAdd(id, 1, st[0] || '');
@@ -1064,6 +1078,8 @@ function viewSell() {
   const tab = ui.sellTab;
   const drinks = menu().filter(m => m.group !== 'topping' && m.active !== false && (tab === 'all' || m.group === tab));
   const toppings = menu().filter(m => m.group === 'topping' && m.active !== false);
+  const hasSnacks = menu().some(m => m.group === 'snack' && m.active !== false);
+  const soldMode = ui.soldMode;
   const qtyOf = id => ui.cart.filter(l => l.id === id).reduce((s, l) => s + l.qty, 0);
   const styleNote = m => stylesOf(m).length > 1 ? ui.cart.filter(l => l.id === m.id && l.style)
     .map(l => `${STYLES[l.style].word}${l.qty > 1 ? '×' + l.qty : ''}`).join(' ') : '';
@@ -1073,24 +1089,26 @@ function viewSell() {
     ${lineBanner()}
     <p class="small muted sell-today">วันนี้ขายแล้ว <b>${sales.length}</b> บิล · <b class="num">${baht(sales.reduce((s, t) => s + amt(t), 0))}</b>
       ${sales.length ? `· <button class="link small" data-action="bills-toggle">${ui.showBills ? 'ซ่อนบิล' : 'ดูบิลวันนี้'}</button>` : ''}</p>
-    <div class="seg sell-tabs">${[['all', 'ทั้งหมด'], ['fruit', S.MENU_GROUPS.fruit], ['drink', S.MENU_GROUPS.drink]].map(([k, l]) =>
+    <div class="seg sell-tabs">${[['all', 'ทั้งหมด'], ['fruit', S.MENU_GROUPS.fruit], ['drink', S.MENU_GROUPS.drink], ...(hasSnacks ? [['snack', S.MENU_GROUPS.snack]] : [])].map(([k, l]) =>
       `<button aria-selected="${tab === k}" data-action="sell-tab" data-t="${k}">${l}</button>`).join('')}</div>
+    <div class="row between sold-bar ${soldMode ? 'on' : ''}"><small>${soldMode ? '🚫 แตะเมนูเพื่อสลับ <b>หมด / มีของ</b> · ลูกค้าใน LINE เห็นทันที' : ''}</small>
+      <button class="btn ${soldMode ? 'primary' : 'ghost'} sm" data-action="sold-mode">${soldMode ? '✓ เสร็จ' : '🚫 ของหมด'}</button></div>
     <div class="menu-grid">${drinks.map(m => { const q = qtyOf(m.id), note = styleNote(m); return `<div class="menu-cell">
-      <button class="menu-btn ${q ? 'in' : ''}" data-action="sell-add" data-id="${m.id}">
+      <button class="menu-btn ${q ? 'in' : ''} ${m.soldOut ? 'sold' : ''}" data-action="sell-add" data-id="${m.id}">
       <span class="m-emoji">${m.emoji}</span><span class="m-name">${esc(m.name)}</span>
-      ${note ? `<span class="m-note">${note}</span>` : `<b class="num">${priceRange(m)}</b>`}
+      ${m.soldOut ? '<span class="sold-tag">หมด</span>' : note ? `<span class="m-note">${note}</span>` : `<b class="num">${priceRange(m)}</b>`}
       ${q ? `<i class="m-qty">${q}</i>` : ''}</button>
       ${q ? `<button class="m-minus" data-action="sell-undo" data-id="${m.id}" aria-label="ลด ${esc(m.name)} 1">−</button>` : ''}</div>`; }).join('')
       || '<p class="muted center pad">ยังไม่มีเมนู เพิ่มได้ที่ ⚙️ ตั้งค่า › เมนูร้าน</p>'}</div>
     ${toppings.length ? `<div class="top-row"><small class="muted">ท็อปปิ้ง</small>${toppings.map(m => { const q = qtyOf(m.id); return `<span class="top-wrap">
-      <button class="chip top-chip ${q ? 'in' : ''}" data-action="sell-add" data-id="${m.id}">${m.emoji} ${esc(m.name)} +${m.price}${q ? ` <b>×${q}</b>` : ''}</button>
+      <button class="chip top-chip ${q ? 'in' : ''} ${m.soldOut ? 'sold' : ''}" data-action="sell-add" data-id="${m.id}">${m.emoji} ${esc(m.name)} ${m.soldOut ? '· หมด' : `+${m.price}`}${q ? ` <b>×${q}</b>` : ''}</button>
       ${q ? `<button class="chip top-minus" data-action="sell-undo" data-id="${m.id}" aria-label="ลด ${esc(m.name)} 1">−</button>` : ''}</span>`; }).join('')}</div>` : ''}
     ${ui.showBills && sales.length ? `<section class="card bills"><h3>🧾 บิลวันนี้</h3><ul>${sales.map(t => `<li>
       <button class="bill-row" data-action="bill-open" data-id="${esc(t.id)}"><span class="num">${esc(t.time || '')}</span>
       <span class="grow">${esc(t.merchant || '')}</span><span>${METHODS[t.method]?.split(' ')[0] || ''}</span><b class="num">${baht(t.amount)}</b></button></li>`).join('')}</ul></section>` : ''}
     <div class="cart-spacer"></div>
     ${ui.cart.length ? `<div class="cart-bar">
-      <button class="cart-sum" data-action="cart-open"><b>🧾 ${cartCups()} แก้ว</b><span class="num">${baht(total)}</span></button>
+      <button class="cart-sum" data-action="cart-open"><b>🧾 ${cartCount()}</b><span class="num">${baht(total)}</span></button>
       <button class="btn primary cart-pay" data-action="pay-open">ชำระเงิน ▶</button>
     </div>` : ''}`;
 }
@@ -1104,7 +1122,7 @@ function openCartSheet() {
       <span class="qty"><button class="icon-btn" data-action="cart-dec" data-id="${l.id}" data-s="${l.style || ''}" aria-label="ลด">−</button><b>${l.qty}</b>
       <button class="icon-btn" data-action="cart-inc" data-id="${l.id}" data-s="${l.style || ''}" aria-label="เพิ่ม">+</button></span>
       <b class="num">${baht(l.price * l.qty)}</b></li>`).join('') || '<li class="muted">ตะกร้าว่าง</li>'}</ul>
-    <div class="close-total"><span>รวม ${cartCups()} แก้ว</span><b class="num">${baht(cartTotal())}</b></div>
+    <div class="close-total"><span>รวม ${cartCount()}</span><b class="num">${baht(cartTotal())}</b></div>
     <div class="row gap"><button class="btn danger" data-action="cart-clear">ล้างตะกร้า</button>
       <button class="btn primary big grow" data-action="pay-open" ${lines.length ? '' : 'disabled'}>ชำระเงิน ▶</button></div>
   </div>`;
@@ -1126,7 +1144,7 @@ function renderPaySheet() {
   $('#sheet').innerHTML = `<div class="sheet-body pay">
     <div class="grab" aria-hidden="true"></div>
     <div class="row between"><h2>ชำระเงิน</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
-    <div class="pay-total"><small>${cartCups()} แก้ว</small><b class="num">${baht(total)}</b></div>
+    <div class="pay-total"><small>${cartCount()}</small><b class="num">${baht(total)}</b></div>
     <div class="seg pay-methods">${CHANNELS.map(([k, l]) => `<button aria-selected="${p.method === k}" data-action="pay-method" data-m="${k}">${l}</button>`).join('')}</div>
     ${p.method === 'cash' ? `
       <label class="close-row"><span>รับเงินมา</span><input type="number" inputmode="decimal" min="0" step="1" placeholder="${total}" value="${p.received}" data-pay="received" aria-label="รับเงินมา"></label>
@@ -1318,7 +1336,7 @@ function menuCard() {
     ${groups.map(([g, label]) => `<div class="row between"><small class="muted">${label}</small>
       <button class="link small" data-action="menu-new" data-g="${g}">+ เพิ่ม</button></div>
       <div class="chips">${menu().filter(m => m.group === g).map(m => `<button class="chip edit ${m.active === false ? 'off' : ''}" data-action="menu-edit" data-id="${m.id}">
-        ${m.emoji} ${esc(m.name)}${m.photo ? ' 📷' : ''} <b class="num">${m.group === 'topping' ? m.price : priceRange(m).replace('฿', '')}</b>${m.active === false ? ' · พัก' : ''}</button>`).join('')}</div>`).join('')}
+        ${m.emoji} ${esc(m.name)}${m.photo ? ' 📷' : ''} <b class="num">${single(m.group) ? m.price : priceRange(m).replace('฿', '')}</b>${m.active === false ? ' · พัก' : ''}${m.soldOut ? ' · หมด' : ''}</button>`).join('')}</div>`).join('')}
   </section>`;
 }
 // drink options (sweetness / ice on the side) as small tags, e.g. on order cards and bills
@@ -1340,7 +1358,7 @@ async function menuPhotoData(file) {
 
 function openMenuEditor(id, group) {
   const m = id && menuItem(id);
-  menuDraft = m ? { ...m, isNew: false } : { id: 'm_' + S.newId(), name: '', emoji: group === 'topping' ? '✨' : '🥤', price: '', cost: '', group: group || 'fruit', active: true, isNew: true };
+  menuDraft = m ? { ...m, isNew: false } : { id: 'm_' + S.newId(), name: '', emoji: group === 'topping' ? '✨' : group === 'snack' ? '🍰' : '🥤', price: '', cost: '', group: group || 'fruit', active: true, isNew: true };
   // style prices as editable strings; an item without styles shows its price under ปั่น
   menuDraft.sp = Object.fromEntries(Object.keys(STYLES).map(k => [k, m?.prices ? (m.prices[k] ?? '') : (k === 'blend' && m ? m.price : '')]));
   renderMenuEditor();
@@ -1356,7 +1374,7 @@ function renderMenuEditor() {
       <input class="w-emoji ce-emoji" value="${esc(d.emoji)}" data-mn="emoji" maxlength="8" aria-label="อีโมจิ">
       <input class="grow" value="${esc(d.name)}" data-mn="name" placeholder="ชื่อเมนู เช่น เสาวรสปั่น" required maxlength="40" aria-label="ชื่อเมนู">
     </div>
-    ${d.group === 'topping' ? `<div class="row gap">
+    ${single(d.group) ? `<div class="row gap">
       <label class="lbl grow">ราคาขาย (บาท)<input type="number" inputmode="decimal" min="0" step="1" value="${d.price}" data-mn="price" required></label>
       <label class="lbl grow">ต้นทุน (ไม่บังคับ)<input type="number" inputmode="decimal" min="0" step="0.5" value="${d.cost ?? ''}" data-mn="cost"></label>
     </div>` : `<div class="lbl">ราคาตามแบบ (เว้นว่าง = ไม่มีแบบนั้น)</div>
@@ -1372,7 +1390,8 @@ function renderMenuEditor() {
       </div>
     </div>
     <label class="lbl">คำอธิบายสั้นๆ (ลูกค้าเห็น · ไม่บังคับ)<input value="${esc(d.desc || '')}" data-mn="desc" maxlength="120" placeholder="เช่น มะม่วงน้ำดอกไม้สุก หวานธรรมชาติ"></label>
-    ${d.group !== 'topping' ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%) และแยกน้ำแข็ง</label>` : ''}
+    ${!single(d.group) ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%) และแยกน้ำแข็ง</label>` : ''}
+    <label class="check"><input type="checkbox" data-mn="soldOut" ${d.soldOut ? 'checked' : ''}> 🚫 หมดชั่วคราว (ลูกค้ายังเห็นเมนู แต่สั่งไม่ได้)</label>
     <label class="check"><input type="checkbox" data-mn="active" ${d.active !== false ? 'checked' : ''}> เปิดขาย (เอาเครื่องหมายออกเพื่อพักขายชั่วคราว)</label>
     <div class="emoji-grid">${EMOJIS.map(e => `<button type="button" class="${e === d.emoji ? 'on' : ''}" data-action="mn-emoji" data-e="${e}">${e}</button>`).join('')}</div>
     <div class="row gap">
@@ -1385,9 +1404,10 @@ async function saveMenuItem() {
   const d = menuDraft;
   if (!d.name.trim()) return toast('ใส่ชื่อเมนูก่อน');
   const prices = {};
-  if (d.group !== 'topping') for (const k of Object.keys(STYLES)) if (Number(d.sp[k]) > 0) prices[k] = Number(d.sp[k]);
-  const price = d.group === 'topping' ? Number(d.price) : Number(Object.values(prices)[0]);
-  if (!(price > 0)) return toast(d.group === 'topping' ? 'ใส่ราคาก่อน' : 'ใส่ราคาอย่างน้อย 1 แบบ');
+  if (!single(d.group)) for (const k of Object.keys(STYLES)) if (Number(d.sp[k]) > 0) prices[k] = Number(d.sp[k]);
+  // an item moved from drinks to snacks/toppings keeps its first price as the single price
+  const price = single(d.group) ? Number(d.price) || Number(Object.values(d.sp || {}).find(v => Number(v) > 0)) || 0 : Number(Object.values(prices)[0]);
+  if (!(price > 0)) return toast(single(d.group) ? 'ใส่ราคาก่อน' : 'ใส่ราคาอย่างน้อย 1 แบบ');
   let photo = d.photoRemove ? 0 : d.photo || 0;
   try {
     if (d.photoData) { toast('กำลังอัปโหลดรูป…'); photo = await S.saveMenuPhoto(d.id, d.photoData); }
@@ -1395,7 +1415,7 @@ async function saveMenuItem() {
   } catch (e) { return toast('อัปโหลดรูปไม่ได้: ' + e.message); }
   const desc = String(d.desc || '').trim().slice(0, 120);
   const item = { id: d.id, name: d.name.trim(), emoji: d.emoji.trim() || '🥤', price, cost: Number(d.cost) || 0, group: d.group, active: d.active !== false,
-    ...(d.group !== 'topping' ? { prices, ...(d.opts === false ? { opts: false } : {}) } : {}), ...(desc ? { desc } : {}), ...(photo ? { photo } : {}) };
+    ...(!single(d.group) ? { prices, ...(d.opts === false ? { opts: false } : {}) } : {}), ...(desc ? { desc } : {}), ...(photo ? { photo } : {}), ...(d.soldOut ? { soldOut: true } : {}) };
   // a menu item's id stays the same, so drop cart lines whose style was removed
   ui.cart = ui.cart.filter(l => l.id !== d.id || !l.style || prices[l.style]);
   const list = d.isNew ? [...menu(), item] : menu().map(m => m.id === d.id ? item : m);
@@ -1638,6 +1658,7 @@ document.addEventListener('click', async e => {
     case 'sell-undo': cartUndo(el.dataset.id); return render();
     case 'style-add': cartAdd(el.dataset.id, 1, el.dataset.s); if (navigator.vibrate) navigator.vibrate(10); $('#sheet').close(); return render();
     case 'sell-tab': ui.sellTab = el.dataset.t; return render();
+    case 'sold-mode': ui.soldMode = !ui.soldMode; return render();
     case 'bills-toggle': ui.showBills = !ui.showBills; return render();
     case 'cart-open': return openCartSheet();
     case 'cart-inc': cartAdd(el.dataset.id, 1, el.dataset.s || ''); render(); return openCartSheet();

@@ -40,7 +40,7 @@ test('bad carts are refused', () => {
   assert.throws(() => Shop.priceCart(menu, [{ id: 'm_mango', style: 'hot', qty: 1 }]), /ไม่มีแบบนี้/);
   assert.throws(() => Shop.priceCart(menu, [{ id: 'm_mango', qty: 0 }]), /จำนวน/);
   assert.throws(() => Shop.priceCart(menu, [{ id: 'm_mango', qty: 1.5e9 }]), /จำนวน/);
-  assert.throws(() => Shop.priceCart(menu, [{ id: 't_pearl', qty: 1 }]), /อย่างน้อย 1 แก้ว/);
+  assert.throws(() => Shop.priceCart(menu, [{ id: 't_pearl', qty: 1 }]), /อย่างน้อย 1 รายการ/);
   assert.throws(() => Shop.priceCart(menu, [{ id: 'm_mango', qty: 15 }, { id: 'm_mango', qty: 15 }]), /เยอะเกินไป/);
 });
 
@@ -120,4 +120,20 @@ test('drink options: sweetness and ice on the side', () => {
   assert.equal(Shop.priceCart(noOpts, [{ id: 'm_mango', qty: 1, sweet: 0, ice: true }]).items[0].sweet, undefined);
   const pm = Shop.publicMenu([{ ...menu[0], photo: 1700, desc: 'ชาแท้' }, menu[2]]);
   assert.deepEqual([pm[0].photo, pm[0].desc, pm[0].opts, pm[1].opts], [1700, 'ชาแท้', true, false]);
+});
+
+test('snacks count as pieces, have no drink options, can be ordered alone; sold-out items are refused', () => {
+  const m2 = [...menu, { id: 's_brownie', name: 'บราวนี่', emoji: '🍫', price: 45, cost: 15, group: 'snack' },
+    { id: 's_cake', name: 'เค้ก', emoji: '🍰', price: 60, group: 'snack', soldOut: true }];
+  const r = Shop.priceCart(m2, [{ id: 's_brownie', qty: 2, sweet: 50, ice: true }]);
+  assert.deepEqual([r.cups, r.pieces, r.total], [0, 2, 90]);
+  assert.equal(r.items[0].sweet, undefined);
+  const mixed = Shop.priceCart(m2, [{ id: 's_brownie', qty: 1 }, { id: 'm_mango', qty: 1 }]);
+  assert.deepEqual([mixed.cups, mixed.pieces], [1, 1]);
+  assert.equal(Shop.priceCart(menu, [{ id: 'm_mango', qty: 1 }]).pieces, undefined);
+  assert.throws(() => Shop.priceCart(m2, [{ id: 's_cake', qty: 1 }]), /เค้ก หมดแล้ว/);
+  const pm = Shop.publicMenu(m2);
+  assert.equal(pm.find(x => x.id === 's_cake').soldOut, true);
+  assert.equal(pm.find(x => x.id === 's_brownie').opts, false);
+  assert.equal(pm.find(x => x.id === 's_brownie').price, 45);
 });

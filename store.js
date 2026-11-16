@@ -63,7 +63,7 @@ export const DEFAULT_MENU = [
   { id: 't_konjac', name: 'บุก', emoji: '⚪', price: 10, cost: 3, group: 'topping' },
   { id: 't_whip', name: 'วิปครีม', emoji: '🍦', price: 5, cost: 2, group: 'topping' },
 ];
-export const MENU_GROUPS = { fruit: '🍓 ปั่นผลไม้', drink: '🧋 ชา·กาแฟ·นม', topping: '✨ ท็อปปิ้ง' };
+export const MENU_GROUPS = { fruit: '🍓 ปั่นผลไม้', drink: '🧋 ชา·กาแฟ·นม', snack: '🍰 ขนม·ของกิน', topping: '✨ ท็อปปิ้ง' };
 
 export const GROUPS = {
   income: { name: 'รายรับ', emoji: '💰' },
