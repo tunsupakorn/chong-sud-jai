@@ -1678,7 +1678,8 @@ function render() {
   const active = document.activeElement;
   const focusKey = active?.dataset?.input;
   // a sync arriving while a settings field is being edited would wipe what was typed: redraw after the field is left
-  if (ui.view === 'settings' && active?.closest?.('#app') && active.matches('input, textarea, select') && focusKey !== 'search') {
+  // (checkboxes, radios and file pickers hold nothing typed, so they never hold the redraw back)
+  if (ui.view === 'settings' && active?.closest?.('#app') && active.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select') && focusKey !== 'search') {
     ui.renderPending = true; return;
   }
   ui.renderPending = false;
