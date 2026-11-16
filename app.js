@@ -494,7 +494,7 @@ function viewSettings() {
         <a class="btn ghost sm" href="mailto:supakorn.nty@gmail.com?subject=${encodeURIComponent('จุกจิกการค้า')}">✉️ supakorn.nty@gmail.com</a>
       </div>
     </section>
-    <p class="center muted small pad">จุกจิกการค้า v1.1</p>`;
+    <p class="center muted small pad">จุกจิกการค้า v${esc(window.APP_VERSION || '')}${window.APP_UPDATED ? ` · อัปเดต ${new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseISO(window.APP_UPDATED))}` : ''}</p>`;
 }
 
 // ---------- access gate (email not verified / not on the allow list) ----------
