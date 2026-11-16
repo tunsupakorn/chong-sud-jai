@@ -92,6 +92,7 @@ function viewMenu() {
     ${!s.open ? '<p class="closed">😴 ร้านปิดรับออเดอร์ทาง LINE อยู่ตอนนี้ ดูเมนูได้ก่อนนะ</p>'
       : !canOrder ? `<p class="closed">ร้านปิดแล้ววันนี้ พรุ่งนี้เปิด ${esc(s.from)} น.</p>`
       : !s.acceptingNow ? `<p class="closed">⏰ ยังไม่ถึงเวลาเปิด สั่งล่วงหน้าแล้วนัดเวลารับได้</p>` : ''}
+    ${s.banner ? `<div class="promo">${s.banner.photo ? `<img src="${API_BASE}/photo/_banner?v=${s.banner.photo}" alt="">` : ''}${s.banner.text ? `<p>${esc(s.banner.text)}</p>` : ''}</div>` : ''}
     ${s.note ? `<p class="g-note">📣 ${esc(s.note)}</p>` : ''}
     <div class="seg sell-tabs" style="margin:12px 0">${[['all', 'ทั้งหมด'], ['fruit', '🍓 ปั่นผลไม้'], ['drink', '🧋 ชา·กาแฟ·นม'],
       ...(ui.menu.some(m => m.group === 'snack') ? [['snack', '🍰 ขนม']] : [])].map(([k, l]) =>
@@ -438,6 +439,10 @@ async function boot() {
     const orderId = params.get('order') || inner?.get('order');
     if (orderId) return openOrder(orderId);
     go('menu');
+    // "สั่งเลย" on a menu card in the chat: open that item
+    const itemId = params.get('item') || inner?.get('item');
+    const m = itemId && item(itemId);
+    if (m && !m.soldOut && m.group !== 'topping' && ui.shop.open) openDetail(m);
   } catch (e) { ui.error = e.message; go('error'); }
 }
 boot();

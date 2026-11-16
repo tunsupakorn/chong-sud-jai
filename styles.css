@@ -514,3 +514,14 @@ a.btn.line-btn { color: #fff; }
 .top-chip.sold { opacity: .5; text-decoration: line-through; }
 .sold-bar { margin: 10px 0; min-height: 36px; gap: 8px; }
 .sold-bar.on { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); border-radius: 14px; padding: 6px 6px 6px 12px; }
+/* counter options, banner settings, sweetness report */
+.sheet-body.pick .seg button b { font-weight: 500; color: var(--accent); }
+.pick-ice { font-size: 1rem; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
+.banner-edit { display: grid; gap: 8px; margin: 0 0 12px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.banner-edit img { width: 100%; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 12px; }
+.banner-edit input:not([type]) { padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); width: 100%; }
+.banner-edit .btn { cursor: pointer; }
+.sweet-bars { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.sweet-bars li { display: grid; grid-template-columns: 44px 1fr 48px; align-items: center; gap: 8px; font-size: .9rem; }
+.sweet-bars i { display: block; height: 12px; border-radius: 6px; background: var(--bar); min-width: 2px; }
+.sweet-bars b { text-align: right; }
