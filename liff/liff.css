@@ -30,3 +30,15 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .fulfil-btn span { font-size: 1.4rem; }
 .fulfil-btn[aria-selected="true"] { border-color: var(--accent); background: var(--surface-2); font-weight: 600; }
 .save-qr { width: 100%; margin: 4px 0 10px; }
+.way-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.way-btn { display: grid; justify-items: center; gap: 2px; padding: 14px 8px; border-radius: 18px; border: 2px solid var(--line); background: var(--surface);
+  font: inherit; color: inherit; cursor: pointer; text-align: center; }
+.way-btn .way-emoji { font-size: 2rem; line-height: 1.2; }
+.way-btn b { font-family: var(--display); font-size: 1.1rem; font-weight: 500; }
+.way-btn small { color: var(--muted); font-size: .8rem; }
+.way-btn[aria-selected="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: 0 4px 14px rgba(47, 127, 214, .18); }
+.way-btn[aria-selected="true"] small { color: var(--accent); }
+.way-btn:disabled { opacity: .45; cursor: not-allowed; }
+.way-warn { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--orange) 14%, var(--surface)); color: var(--text); font-size: .92rem; }
+.field { display: grid; gap: 6px; margin-top: 12px; font-size: .9rem; color: var(--text-2); }
+.field textarea { resize: vertical; font: inherit; }

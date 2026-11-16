@@ -14,8 +14,8 @@ const toMin = hm => { const [h, m] = String(hm).split(':').map(Number); return h
 const toHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 const FULFIL = {
-  pickup: { label: 'มารับเองที่ร้าน', emoji: '🛍️', now: 'รับเลย', later: 'นัดเวลารับ' },
-  delivery: { label: 'ให้ร้านไปส่ง', emoji: '🛵', now: 'ส่งเลย', later: 'นัดเวลาส่ง', ask: 'ที่อยู่จัดส่ง / จุดสังเกต', need: true, phone: true },
+  pickup: { label: 'รับที่ร้าน', emoji: '🛍️', now: 'รับเลย', later: 'นัดเวลารับ' },
+  delivery: { label: 'จัดส่ง', emoji: '🛵', now: 'ส่งเลย', later: 'นัดเวลาส่ง', ask: 'ที่อยู่จัดส่ง / จุดสังเกต', need: true, phone: true },
 };
 const fulfilText = f => f ? `${FULFIL[f.mode]?.emoji || ''} ${FULFIL[f.mode]?.label || ''}${f.detail ? ` · ${f.detail}` : ''}` : '';
 const ui = { view: 'loading', shop: null, menu: [], cart: [], tab: 'all', pickup: { mode: 'asap', at: '' }, pay: '', note: '',
@@ -108,41 +108,56 @@ function viewCheckout() {
   if (ui.pickup.mode === 'later' && !slots.includes(ui.pickup.at)) ui.pickup.at = slots[0] || '';
   if (!ui.pay) ui.pay = s.promptpay ? 'promptpay' : 'cash';
   const modes = (s.modes || ['pickup']).filter(k => FULFIL[k]);
-  if (!modes.includes(ui.fulfil.mode)) ui.fulfil.mode = modes[0];
-  const F = FULFIL[ui.fulfil.mode];
-  try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); if (!ui.fulfil.phone && saved.phone) ui.fulfil.phone = saved.phone; if (!ui.fulfil.detail && saved[ui.fulfil.mode]) ui.fulfil.detail = saved[ui.fulfil.mode]; } catch {}
+  if (!modes.includes(ui.fulfil.mode)) ui.fulfil.mode = modes.includes('pickup') ? 'pickup' : modes[0];
+  const mode = ui.fulfil.mode, F = FULFIL[mode], sum = total();
+  const min = Number(s.deliveryMin) || 0, short = mode === 'delivery' ? Math.max(0, min - sum) : 0;
+  try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); if (!ui.fulfil.phone && saved.phone) ui.fulfil.phone = saved.phone; if (!ui.fulfil.detail && saved[mode]) ui.fulfil.detail = saved[mode]; } catch {}
+  // the two ways, side by side; one the shop switched off stays visible but greyed
+  const way = (k, title, sub) => {
+    const on = modes.includes(k);
+    return `<button class="way-btn" aria-selected="${mode === k}" data-action="fulfil" data-m="${k}" ${on ? '' : 'disabled'}>
+      <span class="way-emoji">${FULFIL[k].emoji}</span><b>${title}</b><small>${on ? sub : 'ร้านปิดตัวเลือกนี้ชั่วคราว'}</small></button>`;
+  };
   return `<header class="shop-head"><button class="icon-btn" data-action="back" aria-label="กลับ">←</button><h1 class="grow">ยืนยันออเดอร์</h1></header>
+    <section class="card"><h3>📍 รับสินค้ายังไง</h3>
+      <div class="way-grid">
+        ${way('pickup', 'รับที่ร้าน', 'มารับเองที่หน้าร้าน')}
+        ${way('delivery', 'จัดส่ง', min ? `ร้านไปส่ง · ขั้นต่ำ ${baht(min)}` : 'ร้านไปส่งให้')}
+      </div>
+      ${mode === 'delivery' ? `
+        ${short ? `<p class="way-warn">🛵 จัดส่งเมื่อสั่งครบ ${baht(min)} · สั่งเพิ่มอีก <b>${baht(short)}</b>${modes.includes('pickup') ? ' หรือเลือกรับที่ร้าน' : ''}</p>` : ''}
+        <label class="field">📍 ที่อยู่จัดส่ง / จุดสังเกต
+          <textarea class="time-pick" rows="2" maxlength="200" placeholder="เช่น โรงพยาบาล ตึก A ชั้น 2 ห้องพยาบาล" data-input="fdetail">${esc(ui.fulfil.detail)}</textarea></label>
+        <label class="field">📞 เบอร์โทรติดต่อ
+          <input class="time-pick" type="tel" inputmode="tel" maxlength="12" placeholder="08x-xxx-xxxx" value="${esc(ui.fulfil.phone)}" data-input="fphone"></label>`
+      : '<p class="small muted" style="margin:10px 0 0">มารับที่ร้านตามเวลาด้านล่าง ร้านจะแจ้งใน LINE เมื่อพร้อม</p>'}
+    </section>
     <section class="card"><h3>🧾 รายการ</h3>
       <ul class="cart-lines">${lines().map(l => `<li><span>${esc(l.m.emoji)} ${esc(l.name)}</span>
         <span class="qty"><button class="icon-btn" data-action="dec" data-id="${esc(l.id)}" data-s="${l.style}" aria-label="ลด">−</button><b>${l.qty}</b>
         <button class="icon-btn" data-action="inc" data-id="${esc(l.id)}" data-s="${l.style}" aria-label="เพิ่ม">+</button></span>
         <b class="num">${baht(l.price * l.qty)}</b></li>`).join('')}</ul>
-      <div class="close-total"><span>รวม ${cups()} แก้ว</span><b class="num">${baht(total())}</b></div>
+      <div class="close-total"><span>รวม ${cups()} แก้ว</span><b class="num">${baht(sum)}</b></div>
+      ${short ? '<button class="btn ghost" style="width:100%;margin-top:10px" data-action="back">＋ เลือกเมนูเพิ่ม</button>' : ''}
     </section>
-    ${modes.length > 1 || F.ask ? `<section class="card"><h3>📍 รับยังไง</h3>
-      ${modes.length > 1 ? `<div class="fulfil-grid">${modes.map(k => `<button class="fulfil-btn" aria-selected="${ui.fulfil.mode === k}" data-action="fulfil" data-m="${k}">
-        <span>${FULFIL[k].emoji}</span>${FULFIL[k].label}</button>`).join('')}</div>` : ''}
-      ${F.ask ? `<input class="time-pick" style="margin-top:10px" maxlength="200" placeholder="${F.ask}${F.need ? '' : ''}" value="${esc(ui.fulfil.detail)}" data-input="fdetail">` : ''}
-      ${F.phone ? `<input class="time-pick" style="margin-top:10px" type="tel" inputmode="tel" maxlength="12" placeholder="เบอร์โทรติดต่อ" value="${esc(ui.fulfil.phone)}" data-input="fphone">` : ''}
-    </section>` : ''}
-    <section class="card"><h3>⏰ ${ui.fulfil.mode === 'delivery' ? 'ส่งเมื่อไหร่' : 'เมื่อไหร่'}</h3>
+    <section class="card"><h3>⏰ ${mode === 'delivery' ? 'ส่งเมื่อไหร่' : 'มารับเมื่อไหร่'}</h3>
       <div class="seg">
         <button aria-selected="${ui.pickup.mode === 'asap'}" data-action="pickup" data-m="asap" ${asapOk ? '' : 'disabled'}>${F.now} (~${s.prep} นาที)</button>
         <button aria-selected="${ui.pickup.mode === 'later'}" data-action="pickup" data-m="later" ${slots.length ? '' : 'disabled'}>${F.later}</button></div>
-      ${ui.pickup.mode === 'later' ? `<select class="time-pick" data-input="at" aria-label="เวลารับ" style="margin-top:10px">
+      ${ui.pickup.mode === 'later' ? `<select class="time-pick" data-input="at" aria-label="เวลา" style="margin-top:10px">
         ${slots.map(t => `<option ${t === ui.pickup.at ? 'selected' : ''}>${t}</option>`).join('')}</select>` : ''}
     </section>
     <section class="card"><h3>💳 จ่ายยังไง</h3>
       <div class="seg">
         ${s.promptpay ? `<button aria-selected="${ui.pay === 'promptpay'}" data-action="pay" data-m="promptpay">📲 โอนพร้อมเพย์</button>` : ''}
-        <button aria-selected="${ui.pay === 'cash'}" data-action="pay" data-m="cash">💵 เงินสดตอนรับ</button></div>
-      <p class="small muted" style="margin:8px 0 0">${ui.pay === 'promptpay' ? 'สั่งแล้วจะมี QR ยอดพอดีให้สแกน' : 'จ่ายที่ร้านตอนมารับ'}</p>
+        <button aria-selected="${ui.pay === 'cash'}" data-action="pay" data-m="cash">💵 ${mode === 'delivery' ? 'เงินสดกับคนส่ง' : 'เงินสดตอนรับ'}</button></div>
+      <p class="small muted" style="margin:8px 0 0">${ui.pay === 'promptpay' ? 'สั่งแล้วจะมี QR ยอดพอดีให้สแกน' : mode === 'delivery' ? 'จ่ายเงินสดตอนได้รับของ' : 'จ่ายที่ร้านตอนมารับ'}</p>
     </section>
     <section class="card"><h3>📝 หมายเหตุถึงร้าน</h3>
       <input class="time-pick" maxlength="120" placeholder="เช่น หวานน้อย ไม่ใส่น้ำแข็ง" value="${esc(ui.note)}" data-input="note"></section>
     ${ui.error ? `<p class="err center" style="margin-top:12px">${esc(ui.error)}</p>` : ''}
-    <div style="margin-top:16px"><button class="btn primary big" data-action="place" ${ui.busy || !ui.cart.length ? 'disabled' : ''}>
-      ${ui.busy ? 'กำลังส่งออเดอร์…' : `✅ ยืนยันสั่ง · ${baht(total())}`}</button></div>`;
+    <div style="margin-top:16px"><button class="btn primary big" data-action="place" ${ui.busy || !ui.cart.length || short ? 'disabled' : ''}>
+      ${ui.busy ? 'กำลังส่งออเดอร์…' : short ? `สั่งเพิ่มอีก ${baht(short)} เพื่อจัดส่ง` : `✅ ยืนยันสั่ง · ${baht(sum)}`}</button></div>`;
 }
 
 function viewOrder() {

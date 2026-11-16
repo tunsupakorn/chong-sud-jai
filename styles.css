@@ -501,3 +501,4 @@ details.more-settings section + section { margin-top: 14px; }
 .push-row.on { background: color-mix(in srgb, #06C755 12%, var(--surface)); }
 .dev-contact .btn { text-decoration: none; }
 a.btn.line-btn { color: #fff; }
+.chips .chip.mode-off { opacity: .55; text-decoration: line-through; }
