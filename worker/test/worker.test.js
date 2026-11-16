@@ -326,3 +326,27 @@ test('menu photo is served from Firestore as an image', async () => {
   assert.equal(Buffer.from(await res.arrayBuffer()).toString(), 'RIFFxxxxWEBP');
   assert.equal((await app(new Request('https://w.test/photo/m_mango'))).status, 404);
 });
+
+test('"เมนู" in chat: a carousel with photo cards first, sold out left out; banner on the menu', async () => {
+  docs[SHOP].data.settings.menu = [
+    { id: 'm_thaitea', name: 'ชาไทย', emoji: '🧋', prices: { blend: 35, iced: 30, hot: 25 }, price: 35, group: 'drink', photo: 9, photoType: 'jpeg' },
+    { id: 'm_mango', name: 'มะม่วงปั่น', emoji: '🥭', prices: { blend: 45 }, price: 45, group: 'fruit', photo: 3, photoType: 'webp' },
+    { id: 'm_off', name: 'หมดแล้ว', emoji: '🍓', prices: { blend: 40 }, price: 40, group: 'fruit', soldOut: true },
+    { id: 't_pearl', name: 'ไข่มุก', price: 10, group: 'topping' }];
+  docs[SHOP].data.settings.line.banner = { on: true, text: 'ซื้อ 2 ลด 10%', photo: 77 };
+  const m = await call('GET', '/menu');
+  assert.deepEqual(m.data.shop.banner, { text: 'ซื้อ 2 ลด 10%', photo: 77 });
+  const raw = JSON.stringify({ events: [{ type: 'message', replyToken: 'r9', source: { userId: 'UA' }, message: { type: 'text', text: 'เมนู' } }] });
+  const key = await crypto.subtle.importKey('raw', enc.encode('sec'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Buffer.from(await crypto.subtle.sign('HMAC', key, enc.encode(raw))).toString('base64');
+  await app(new Request('https://w.test/webhook', { method: 'POST', body: raw, headers: { 'x-line-signature': sig } }));
+  const cards = replies[0].messages[0].contents.contents;
+  assert.equal(replies[0].messages[0].contents.type, 'carousel');
+  assert.deepEqual(cards.slice(0, 2).map(c => c.body.contents.find(x => x.weight === 'bold').text), ['ชาไทย', 'มะม่วงปั่น']);
+  assert.equal(cards[0].hero.url, 'https://w.test/photo/m_thaitea?v=9');
+  assert.equal(cards[1].hero, undefined); // WebP: LINE cannot show it
+  assert.equal(cards.length, 3);           // 2 menu cards + "ดูเมนูทั้งหมด" (sold out and toppings left out)
+  assert.equal(cards[0].footer.contents[0].action.uri, 'https://liff.line.me/liff-1?item=m_thaitea');
+  docs[SHOP].data.settings.line.banner.on = false;
+  assert.equal((await call('GET', '/menu')).data.shop.banner, undefined);
+});

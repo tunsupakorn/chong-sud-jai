@@ -52,3 +52,7 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .det-ice { font-size: 1rem; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
 .det .qty { display: flex; align-items: center; gap: 12px; }
 .det-n { font-family: var(--display); font-size: 1.3rem; min-width: 1.5em; text-align: center; }
+/* promotion banner */
+.promo { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #CFE6FF, #E6DCFF); }
+.promo img { display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; }
+.promo p { margin: 0; padding: 10px 14px; font-family: var(--display); font-size: 1.05rem; color: #1F2A44; }

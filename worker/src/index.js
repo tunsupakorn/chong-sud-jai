@@ -72,7 +72,31 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const { settings, cfg, menu, name } = await loadShop();
     const now = Shop.bkk();
     return { shop: { name, modes: Shop.fulfilModes(cfg), deliveryMin: Math.max(0, Number(cfg.deliveryMin) || 0), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
-      now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to) }, menu: Shop.publicMenu(menu) };
+      now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to),
+      ...(cfg.banner?.on && (cfg.banner.text || cfg.banner.photo) ? { banner: { text: String(cfg.banner.text || '').slice(0, 120), ...(cfg.banner.photo ? { photo: cfg.banner.photo } : {}) } } : {}) },
+      menu: Shop.publicMenu(menu) };
+  }
+
+  // "เมนู" in the chat: a carousel of menu cards (photos first). LINE shows JPEG/PNG only, so a WebP photo is left out of the card.
+  let selfOrigin = '';
+  async function menuCarousel() {
+    const { menu: items, name } = await loadShop();
+    const list = items.filter(m => m.active !== false && !m.soldOut && m.group !== 'topping' && Shop.priceOf(m, Shop.stylesOf(m)[0]) > 0)
+      .sort((a, b) => (b.photoType === 'jpeg') - (a.photoType === 'jpeg')).slice(0, 11);
+    const price = m => { const p = Shop.stylesOf(m).map(k => Number(m.prices[k])); const lo = Math.min(...(p.length ? p : [Number(m.price)])), hi = Math.max(...(p.length ? p : [Number(m.price)])); return lo === hi ? baht(lo) : `฿${lo}–${hi}`; };
+    const card = m => ({ type: 'bubble', size: 'micro',
+      ...(m.photo && m.photoType === 'jpeg' && selfOrigin ? { hero: { type: 'image', url: `${selfOrigin}/photo/${encodeURIComponent(m.id)}?v=${m.photo}`, size: 'full', aspectRatio: '1:1', aspectMode: 'cover' } } : {}),
+      body: { type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+        ...(m.photo && m.photoType === 'jpeg' ? [] : [{ type: 'text', text: m.emoji || '🥤', size: '3xl', align: 'center' }]),
+        { type: 'text', text: m.name, weight: 'bold', size: 'sm', wrap: true },
+        { type: 'text', text: price(m), size: 'sm', color: '#2F7FD6', weight: 'bold' }] },
+      footer: { type: 'box', layout: 'vertical', contents: [
+        { type: 'button', style: 'primary', color: '#2F7FD6', height: 'sm', action: { type: 'uri', label: 'สั่งเลย', uri: liffUrl(`?item=${encodeURIComponent(m.id)}`) } }] } });
+    const all = { type: 'bubble', size: 'micro', body: { type: 'box', layout: 'vertical', justifyContent: 'center', spacing: 'md', contents: [
+      { type: 'text', text: '🧋', size: '3xl', align: 'center' }, { type: 'text', text: 'ดูเมนูทั้งหมด', weight: 'bold', align: 'center', wrap: true }] },
+      footer: { type: 'box', layout: 'vertical', contents: [{ type: 'button', style: 'primary', color: '#06C755', height: 'sm', action: { type: 'uri', label: 'เปิดหน้าสั่ง', uri: liffUrl() } }] } };
+    if (!list.length) return orderButton('ดูเมนูและสั่งได้ที่นี่เลย 👇');
+    return { type: 'flex', altText: `เมนู ${name}`, contents: { type: 'carousel', contents: [...list.map(card), all] } };
   }
 
   async function placeOrder(who, body, ctx) {
@@ -194,7 +218,8 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       const stamps = c?.data?.stamps || 0, goal = Number(cfg.stampGoal) || 10, rounds = Math.floor(stamps / goal);
       return reply({ type: 'text', text: `แต้มสะสม ${stamps % goal}/${goal} แก้ว ⭐${rounds ? `\nครบแล้ว ${rounds} รอบ 🎉` : ''}` });
     }
-    if (/เมนู|สั่ง|ราคา/.test(text)) return reply(orderButton('ดูเมนูและสั่งได้ที่นี่เลย 👇'));
+    if (/เมนู|ราคา/.test(text)) return reply(await menuCarousel());
+    if (/สั่ง/.test(text)) return reply(orderButton('ดูเมนูและสั่งได้ที่นี่เลย 👇'));
     // anything else: the shop answers in LINE OA Manager chat
   }
 
@@ -210,6 +235,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
 
   return async function handle(req, ctx) {
     const url = new URL(req.url);
+    selfOrigin ||= url.origin; // for image links in LINE messages
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts[0] === 'webhook') {
       if (req.method !== 'POST') return new Response('', { status: 405 });

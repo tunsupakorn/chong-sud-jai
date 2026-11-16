@@ -51,12 +51,12 @@ const pieces = () => lines().filter(l => l.m.group === 'snack').reduce((s, l) =>
 const countText = () => [cups() ? `${cups()} แก้ว` : '', pieces() ? `${pieces()} ชิ้น` : ''].filter(Boolean).join(' · ') || '0 แก้ว';
 // drink options: sweetness and ice on the side (the Worker checks them again)
 const SWEET = [0, 25, 50, 100];
-const keyOf = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.ice ? 1 : 0}`;
+const keyOf = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.note || ''}`;
 const optTags = l => [l.sweet !== undefined && l.sweet !== 100 ? `<span class="opt-tag">🍯 หวาน ${l.sweet}%</span>` : '',
-  l.ice || l.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : ''].join('');
+  l.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : '', l.note ? `<span class="opt-tag">📝 ${esc(l.note)}</span>` : ''].join('');
 const photoSrc = m => m.photo ? `${API_BASE}/photo/${encodeURIComponent(m.id)}?v=${m.photo}` : '';
-function cartAdd(id, n, style = '', sweet, ice) {
-  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(ice ? { ice: true } : {}) };
+function cartAdd(id, n, style = '', sweet, note = '') {
+  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(note ? { note } : {}) };
   const l = ui.cart.find(x => keyOf(x) === keyOf(add));
   if (l) l.qty += n; else if (n > 0) ui.cart.push({ ...add, qty: n });
   ui.cart = ui.cart.filter(x => x.qty > 0);
@@ -92,6 +92,7 @@ function viewMenu() {
     ${!s.open ? '<p class="closed">😴 ร้านปิดรับออเดอร์ทาง LINE อยู่ตอนนี้ ดูเมนูได้ก่อนนะ</p>'
       : !canOrder ? `<p class="closed">ร้านปิดแล้ววันนี้ พรุ่งนี้เปิด ${esc(s.from)} น.</p>`
       : !s.acceptingNow ? `<p class="closed">⏰ ยังไม่ถึงเวลาเปิด สั่งล่วงหน้าแล้วนัดเวลารับได้</p>` : ''}
+    ${s.banner ? `<div class="promo">${s.banner.photo ? `<img src="${API_BASE}/photo/_banner?v=${s.banner.photo}" alt="">` : ''}${s.banner.text ? `<p>${esc(s.banner.text)}</p>` : ''}</div>` : ''}
     ${s.note ? `<p class="g-note">📣 ${esc(s.note)}</p>` : ''}
     <div class="seg sell-tabs" style="margin:12px 0">${[['all', 'ทั้งหมด'], ['fruit', '🍓 ปั่นผลไม้'], ['drink', '🧋 ชา·กาแฟ·นม'],
       ...(ui.menu.some(m => m.group === 'snack') ? [['snack', '🍰 ขนม']] : [])].map(([k, l]) =>
@@ -247,7 +248,7 @@ async function refreshOrder(id) {
 // ---------- item detail: photo, description, style, sweetness, ice, quantity ----------
 function openDetail(m) {
   const st = stylesOf(m);
-  ui.det = { id: m.id, style: st[0] || '', sweet: 100, ice: false, qty: 1 };
+  ui.det = { id: m.id, style: st[0] || '', sweet: 100, note: '', qty: 1 };
   renderDetail();
   if (!$('#sheet').open) $('#sheet').showModal();
 }
@@ -255,7 +256,6 @@ function renderDetail() {
   const d = ui.det, m = item(d.id);
   if (!m) return $('#sheet').close();
   const st = stylesOf(m), price = priceOf(m, d.style);
-  const iceOk = m.opts && d.style !== 'hot';
   $('#sheet').innerHTML = `<div class="sheet-body det">
     <div class="grab" aria-hidden="true"></div>
     ${m.photo ? `<img class="det-photo" src="${photoSrc(m)}" alt="${esc(m.name)}">` : `<div class="det-emoji">${esc(m.emoji)}</div>`}
@@ -264,7 +264,8 @@ function renderDetail() {
     ${st.length > 1 ? `<div><small class="muted">แบบ</small><div class="seg">${st.map(k => `<button aria-selected="${d.style === k}" data-action="det-style" data-s="${k}">
       ${STYLES[k].emoji} ${STYLES[k].word} <b class="num">${baht(m.prices[k])}</b></button>`).join('')}</div></div>` : ''}
     ${m.opts ? `<div><small class="muted">ความหวาน</small><div class="seg">${SWEET.map(v => `<button aria-selected="${d.sweet === v}" data-action="det-sweet" data-v="${v}">${v}%</button>`).join('')}</div></div>` : ''}
-    ${iceOk ? `<label class="check det-ice"><input type="checkbox" data-input="det-ice" ${d.ice ? 'checked' : ''}> 🧊 แยกน้ำแข็ง</label>` : ''}
+    ${m.group !== 'topping' ? `<label class="field">📝 หมายเหตุแก้วนี้ (ถ้ามี)
+      <input class="time-pick" maxlength="60" placeholder="${m.group === 'snack' ? 'เช่น อุ่นร้อน แยกถุง' : 'เช่น แยกน้ำแข็ง น้ำแข็งน้อย ไม่ใส่วิป'}" value="${esc(d.note)}" data-input="det-note"></label>` : ''}
     <div class="row between"><small class="muted">จำนวน</small>
       <span class="qty"><button class="icon-btn" data-action="det-qty" data-n="-1" aria-label="ลด" ${d.qty <= 1 ? 'disabled' : ''}>−</button><b class="det-n">${d.qty}</b>
       <button class="icon-btn" data-action="det-qty" data-n="1" aria-label="เพิ่ม">+</button></span></div>
@@ -276,7 +277,7 @@ async function placeOrder() {
   ui.busy = true; ui.error = ''; render();
   try {
     const o = await api('/orders', { method: 'POST', body: {
-      items: ui.cart.map(({ id, style, qty, sweet, ice }) => ({ id, style, qty, ...(sweet !== undefined ? { sweet } : {}), ...(ice ? { ice: true } : {}) })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note,
+      items: ui.cart.map(({ id, style, qty, sweet, note }) => ({ id, style, qty, ...(sweet !== undefined ? { sweet } : {}), ...(note ? { note } : {}) })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note,
       fulfil: { mode: ui.fulfil.mode, detail: ui.fulfil.detail, phone: ui.fulfil.phone } } });
     try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); localStorage.setItem('kaa_fulfil', JSON.stringify({ ...saved, phone: ui.fulfil.phone || saved.phone, [ui.fulfil.mode]: ui.fulfil.detail })); } catch {}
     ui.cart = []; ui.note = '';
@@ -368,20 +369,20 @@ document.addEventListener('click', async e => {
       if (m.group !== 'topping') return openDetail(m); // toppings go straight in
       cartAdd(id, 1, ''); if (navigator.vibrate) navigator.vibrate(10); return render();
     }
-    case 'det-style': ui.det.style = el.dataset.s; if (ui.det.style === 'hot') ui.det.ice = false; return renderDetail();
+    case 'det-style': ui.det.style = el.dataset.s; return renderDetail();
     case 'det-sweet': ui.det.sweet = Number(el.dataset.v); return renderDetail();
     case 'det-qty': ui.det.qty = Math.max(1, Math.min(20, ui.det.qty + Number(el.dataset.n))); return renderDetail();
     case 'det-add': {
       const d = ui.det, m = item(d.id); if (!m) return;
-      cartAdd(d.id, d.qty, d.style, m.opts ? d.sweet : undefined, m.opts && d.ice && d.style !== 'hot');
+      cartAdd(d.id, d.qty, d.style, m.opts ? d.sweet : undefined, String(d.note || '').trim().slice(0, 60));
       if (navigator.vibrate) navigator.vibrate(10);
       $('#sheet').close(); toast(`ใส่ตะกร้าแล้ว · ${m.name}`); return render();
     }
     case 'close-sheet': return $('#sheet').close();
-    case 'undo': { const l = [...ui.cart].reverse().find(x => x.id === id); if (l) cartAdd(id, -1, l.style, l.sweet, l.ice); return render(); }
+    case 'undo': { const l = [...ui.cart].reverse().find(x => x.id === id); if (l) cartAdd(id, -1, l.style, l.sweet, l.note); return render(); }
     case 'inc': case 'dec': {
       const l = ui.cart.find(x => keyOf(x) === el.dataset.k); if (!l) return;
-      cartAdd(l.id, el.dataset.action === 'inc' ? 1 : -1, l.style, l.sweet, l.ice);
+      cartAdd(l.id, el.dataset.action === 'inc' ? 1 : -1, l.style, l.sweet, l.note);
       if (!ui.cart.length) return go('menu');
       return render();
     }
@@ -412,7 +413,6 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', e => {
   if (e.target.dataset.input === 'at') ui.pickup.at = e.target.value;
-  if (e.target.dataset.input === 'det-ice' && ui.det) ui.det.ice = e.target.checked;
   if (e.target.dataset.input === 'slip') { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendSlip(f); }
 });
 document.addEventListener('input', e => {
@@ -420,6 +420,7 @@ document.addEventListener('input', e => {
   if (k === 'note') ui.note = e.target.value;
   if (k === 'fdetail') ui.fulfil.detail = e.target.value;
   if (k === 'fphone') ui.fulfil.phone = e.target.value;
+  if (k === 'det-note' && ui.det) ui.det.note = e.target.value;
 });
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); });
 
@@ -438,6 +439,10 @@ async function boot() {
     const orderId = params.get('order') || inner?.get('order');
     if (orderId) return openOrder(orderId);
     go('menu');
+    // "สั่งเลย" on a menu card in the chat: open that item
+    const itemId = params.get('item') || inner?.get('item');
+    const m = itemId && item(itemId);
+    if (m && !m.soldOut && m.group !== 'topping' && ui.shop.open) openDetail(m);
   } catch (e) { ui.error = e.message; go('error'); }
 }
 boot();

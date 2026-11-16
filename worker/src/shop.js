@@ -26,7 +26,9 @@ export const SWEET = [0, 25, 50, 100];
 // drinks: everything except toppings and snacks (ขนม·ของกิน)
 export const isDrink = m => m.group !== 'topping' && m.group !== 'snack';
 export const hasOpts = m => isDrink(m) && m.opts !== false;
-export const optText = i => [i.sweet !== undefined && i.sweet !== 100 ? `หวาน ${i.sweet}%` : '', i.iceSep ? 'แยกน้ำแข็ง' : ''].filter(Boolean).join(' · ');
+// i.note: the customer's own note for that item (e.g. แยกน้ำแข็ง, ไม่ใส่วิป); iceSep is the older checkbox, still shown
+export const optText = i => [i.sweet !== undefined && i.sweet !== 100 ? `หวาน ${i.sweet}%` : '', i.iceSep ? 'แยกน้ำแข็ง' : '', i.note || ''].filter(Boolean).join(' · ');
+export const cleanNote = v => String(v || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
 export const itemLabel = i => { const o = optText(i); return o ? `${i.name} (${o})` : i.name; };
 export const lineName = (m, style) => style && stylesOf(m).length > 1 ? `${m.name} ${STYLES[style]}` : m.name;
 
@@ -61,7 +63,9 @@ export function priceCart(menu, lines) {
       if (!SWEET.includes(sweet)) throw new OrderError('ระดับความหวานไม่ถูกต้อง');
       opt = { sweet, ...(l.ice && style !== 'hot' ? { iceSep: true } : {}) };
     }
-    const key = `${m.id}|${style}|${opt.sweet ?? ''}|${opt.iceSep ? 1 : 0}`;
+    const note = m.group === 'topping' ? '' : cleanNote(l.note);
+    if (note) opt.note = note;
+    const key = `${m.id}|${style}|${opt.sweet ?? ''}|${opt.iceSep ? 1 : 0}|${note}`;
     const prev = merged.get(key);
     if (prev) prev.qty += qty;
     else merged.set(key, { id: m.id, name: lineName(m, style), qty, price: priceOf(m, style), cost: Number(m.cost) || 0, topping: m.group === 'topping', snack: m.group === 'snack', ...(style ? { style } : {}), ...opt });

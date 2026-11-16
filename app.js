@@ -218,6 +218,18 @@ function viewHome() {
 }
 
 // ---------- รายงานจากหน้าขาย: เมนูขายดี กำไรต่อเมนู ช่วงเวลา ยอดต่อบิล ----------
+// which sweetness customers choose (counter and LINE), and how many cups have the ice on the side
+function sweetReport(list) {
+  const items = list.filter(t => t.source === 'pos').flatMap(t => t.items || []).filter(i => i.sweet !== undefined);
+  const n = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  if (!n) return '';
+  const by = [100, 50, 25, 0].map(v => ({ v, q: items.filter(i => i.sweet === v).reduce((s, i) => s + (Number(i.qty) || 0), 0) }));
+  const ice = items.filter(i => i.iceSep).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  return `<section class="card"><h3>🍯 ความหวานยอดนิยม</h3>
+    <ul class="sweet-bars">${by.map(r => `<li><span>${r.v}%</span><i style="width:${Math.round(r.q / n * 100)}%"></i><b class="num">${pct(r.q / n)}</b></li>`).join('')}</ul>
+    <p class="small muted">จาก ${nf.format(n)} แก้วที่เลือกความหวาน${ice ? ` · 🧊 แยกน้ำแข็ง ${pct(ice / n)}` : ''}</p></section>`;
+}
+
 function posReport(list) {
   const bills = list.filter(t => t.source === 'pos');
   if (!bills.length) return `<section class="card"><h3>🛒 รายงานจากหน้าขาย</h3>
@@ -330,6 +342,7 @@ function viewStats() {
     ${Object.keys(ch).length ? `<section class="card"><h3>ช่องทางรับเงิน</h3><ul class="methods">${Object.entries(ch).sort((a, b) => b[1] - a[1])
       .map(([k, v]) => `<li><span>${METHODS[k] || k}</span><span class="num">${baht(v)} <small class="muted">${pct(m.sales ? v / m.sales : 0)}</small></span></li>`).join('')}</ul></section>` : ''}
     ${posReport(list)}
+    ${sweetReport(list)}
     ${wdRows.length ? `<section class="card"><h3>วันขายดี <small class="muted">(เฉลี่ยต่อวัน)</small></h3>${categoryBars(wdRows, baht, 'income')}</section>` : ''}
     <section class="card"><h3>ต้นทุน + ค่าใช้จ่าย แยกหมวด</h3>${categoryBars(catRows, baht, 'expense')}</section>`;
 }
@@ -882,6 +895,12 @@ function lineCard() {
       ${lineModes().includes('delivery') ? `<label>จัดส่งขั้นต่ำ (บาท)<input type="number" inputmode="numeric" min="0" max="5000" step="10" value="${esc(c.deliveryMin)}" data-line="deliveryMin"></label>` : ''}
     </div>
     <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิก คาฟ่า" value="${esc(c.name || '')}" data-line="name"></label>
+    <div class="banner-edit"><label class="check"><input type="checkbox" data-input="banner-on" ${c.banner?.on ? 'checked' : ''}> 📣 แบนเนอร์โปรโมชันบนหน้าสั่ง</label>
+      ${c.banner?.photo ? `<img src="${S.photoUrl('_banner', c.banner.photo)}" alt="แบนเนอร์">` : ''}
+      <div class="row gap wrap"><label class="btn ghost sm">🖼️ ${c.banner?.photo ? 'เปลี่ยนรูป' : 'ใส่รูปแนวนอน'}<input type="file" accept="image/*" data-input="bannerphoto" hidden></label>
+        ${c.banner?.photo ? '<button class="link small" data-action="banner-photo-remove">ลบรูป</button>' : ''}</div>
+      <input maxlength="120" placeholder="ข้อความ เช่น 🎉 ซื้อ 2 แก้ว ลด 10% วันนี้เท่านั้น" value="${esc(c.banner?.text || '')}" data-banner="text">
+      <p class="small muted" style="margin:0">แสดงผลอย่างเดียว ยังไม่ลดราคาให้อัตโนมัติ</p></div>
     <label class="line-note">ประกาศถึงลูกค้า<input maxlength="120" placeholder="เช่น วันนี้มะม่วงหมด" value="${esc(c.note)}" data-line="note"></label>
     <button class="btn primary sm" data-action="line-save">บันทึก</button>
     ${state.settings.promptpay ? '' : '<p class="small muted">ยังไม่ได้ตั้งพร้อมเพย์ร้าน ลูกค้าจะเลือกได้แค่เงินสดตอนรับ</p>'}
@@ -1034,16 +1053,38 @@ const cartCount = () => [cartCups() ? `${cartCups()} แก้ว` : '', cartPie
 const todaySales = () => state.tx.filter(t => t.source === 'pos' && t.date === todayISO())
   .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-function cartAdd(id, n = 1, style = '') {
-  const l = ui.cart.find(x => x.id === id && (x.style || '') === style);
-  if (l) l.qty += n; else if (n > 0) ui.cart.push({ id, style, qty: n });
+const posKey = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.note || ''}`;
+function cartAdd(id, n = 1, style = '', sweet, note = '') {
+  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(note ? { note } : {}) };
+  const l = ui.cart.find(x => posKey(x) === posKey(add));
+  if (l) l.qty += n; else if (n > 0) ui.cart.push({ ...add, qty: n });
   if (n > 0) (l || ui.cart[ui.cart.length - 1]).t = Date.now();
   ui.cart = ui.cart.filter(x => x.qty > 0);
 }
 // "−" on a tile: take back the most recent tap of that item (whatever style it was)
 function cartUndo(id) {
   const l = ui.cart.filter(x => x.id === id).sort((a, b) => (b.t || 0) - (a.t || 0))[0];
-  if (l) cartAdd(id, -1, l.style || '');
+  if (l) cartAdd(id, -1, l.style || '', l.sweet, l.note);
+}
+// ask sweetness and a note (e.g. แยกน้ำแข็ง) when selling at the counter (setting; on by default)
+const askOpts = m => isDrinkItem(m) && m.opts !== false && state.settings.posOpts !== false;
+function openPick(m) {
+  ui.pick = { id: m.id, style: stylesOf(m)[0] || '', sweet: 100, note: '' };
+  renderPick();
+  if (!$('#sheet').open) $('#sheet').showModal();
+}
+function renderPick() {
+  const p = ui.pick, m = menuItem(p.id);
+  if (!m) return $('#sheet').close();
+  const st = stylesOf(m);
+  $('#sheet').innerHTML = `<div class="sheet-body pick">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="row between"><h2>${m.emoji} ${esc(m.name)}</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
+    ${st.length > 1 ? `<div class="seg">${st.map(k => `<button aria-selected="${p.style === k}" data-action="pick-style" data-s="${k}">${STYLES[k].emoji} ${STYLES[k].word} <b class="num">${baht(m.prices[k])}</b></button>`).join('')}</div>` : ''}
+    <div><small class="muted">ความหวาน</small><div class="seg">${[0, 25, 50, 100].map(v => `<button aria-selected="${p.sweet === v}" data-action="pick-sweet" data-v="${v}">${v}%</button>`).join('')}</div></div>
+    <label class="lbl">📝 หมายเหตุแก้วนี้ (ถ้ามี)<input maxlength="60" placeholder="เช่น แยกน้ำแข็ง น้ำแข็งน้อย ไม่ใส่วิป" value="${esc(p.note)}" data-input="pick-note"></label>
+    <button class="btn primary big" data-action="pick-add">＋ ใส่ตะกร้า · ${baht(priceOf(m, p.style))}</button>
+  </div>`;
 }
 function setSoldOut(id, soldOut) {
   S.saveSettings({ menu: menu().map(m => {
@@ -1054,6 +1095,7 @@ function setSoldOut(id, soldOut) {
 }
 function tapMenu(id) {
   const m = menuItem(id); if (!m) return;
+  if (!ui.soldMode && !m.soldOut && askOpts(m)) return openPick(m);
   if (ui.soldMode) { setSoldOut(id, !m.soldOut); toast(m.soldOut ? `${m.name} · มีของแล้ว ✅` : `${m.name} · หมด 🚫`); return render(); }
   if (m.soldOut) return toast(`${m.name} หมดอยู่ · แตะ 🚫 ของหมด เพื่อเปิดขายอีกครั้ง`);
   const st = stylesOf(m);
@@ -1118,9 +1160,9 @@ function openCartSheet() {
   $('#sheet').innerHTML = `<div class="sheet-body">
     <div class="grab" aria-hidden="true"></div>
     <div class="row between"><h2>🧾 ตะกร้า</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
-    <ul class="cart-lines">${lines.map(l => `<li><span>${l.item.emoji} ${esc(l.name)}</span>
-      <span class="qty"><button class="icon-btn" data-action="cart-dec" data-id="${l.id}" data-s="${l.style || ''}" aria-label="ลด">−</button><b>${l.qty}</b>
-      <button class="icon-btn" data-action="cart-inc" data-id="${l.id}" data-s="${l.style || ''}" aria-label="เพิ่ม">+</button></span>
+    <ul class="cart-lines">${lines.map(l => `<li><span>${l.item.emoji} ${esc(l.name)} ${optTags(l)}</span>
+      <span class="qty"><button class="icon-btn" data-action="cart-dec" data-k="${esc(posKey(l))}" aria-label="ลด">−</button><b>${l.qty}</b>
+      <button class="icon-btn" data-action="cart-inc" data-k="${esc(posKey(l))}" aria-label="เพิ่ม">+</button></span>
       <b class="num">${baht(l.price * l.qty)}</b></li>`).join('') || '<li class="muted">ตะกร้าว่าง</li>'}</ul>
     <div class="close-total"><span>รวม ${cartCount()}</span><b class="num">${baht(cartTotal())}</b></div>
     <div class="row gap"><button class="btn danger" data-action="cart-clear">ล้างตะกร้า</button>
@@ -1165,8 +1207,10 @@ function confirmSale() {
   const tx = {
     id: 'pos-' + S.newId(), type: 'income', cat: 'sales', method: ui.pay.method, amount: total,
     date: todayISO(), time: nowHM(), source: 'pos', cups: cartCups(),
-    merchant: lines.map(l => `${l.name}${l.qty > 1 ? '×' + l.qty : ''}`).join(', '),
-    items: lines.map(l => ({ id: l.id, name: l.name, qty: l.qty, price: l.price, cost: Number(l.item.cost) || 0, ...(l.style ? { style: l.style } : {}) })),
+    merchant: lines.map(l => { const o = [l.sweet !== undefined && l.sweet !== 100 ? `หวาน ${l.sweet}%` : '', l.note || ''].filter(Boolean).join(' · ');
+      return `${l.name}${o ? ` (${o})` : ''}${l.qty > 1 ? '×' + l.qty : ''}`; }).join(', '),
+    items: lines.map(l => ({ id: l.id, name: l.name, qty: l.qty, price: l.price, cost: Number(l.item.cost) || 0, ...(l.style ? { style: l.style } : {}),
+      ...(l.sweet !== undefined ? { sweet: l.sweet } : {}), ...(l.note ? { note: l.note } : {}) })),
     ...(ui.pay.method === 'cash' ? { received: rec, change: rec - total } : {}),
   };
   S.saveTx(tx);
@@ -1333,6 +1377,7 @@ function menuCard() {
   const groups = Object.entries(S.MENU_GROUPS);
   return `<section class="card" id="menu"><h3>🧋 เมนูร้าน</h3>
     <p class="muted small">แตะเมนูเพื่อแก้ราคา (ปั่น / เย็น / ร้อน) ต้นทุน หรือพักขาย · ใช้ในหน้า 🛒 ขาย</p>
+    <label class="check"><input type="checkbox" data-input="posopts" ${state.settings.posOpts !== false ? 'checked' : ''}> ถามความหวานและหมายเหตุตอนขายหน้าร้าน</label>
     ${groups.map(([g, label]) => `<div class="row between"><small class="muted">${label}</small>
       <button class="link small" data-action="menu-new" data-g="${g}">+ เพิ่ม</button></div>
       <div class="chips">${menu().filter(m => m.group === g).map(m => `<button class="chip edit ${m.active === false ? 'off' : ''}" data-action="menu-edit" data-id="${m.id}">
@@ -1341,20 +1386,19 @@ function menuCard() {
 }
 // drink options (sweetness / ice on the side) as small tags, e.g. on order cards and bills
 const optTags = i => [i.sweet !== undefined && i.sweet !== 100 ? `<span class="opt-tag">🍯 หวาน ${i.sweet}%</span>` : '',
-  i.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : ''].join('');
-// square crop, 600px, WebP (JPEG where the browser cannot make WebP) — a photo is ~30–60 KB
-async function menuPhotoData(file) {
+  i.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : '', i.note ? `<span class="opt-tag">📝 ${esc(i.note)}</span>` : ''].join('');
+// centre crop to w×h (menu 600×600, banner 1200×600), JPEG so LINE chat cards can show it too — ~40–80 KB
+async function photoData(file, w = 600, h = 600) {
   const bmp = await createImageBitmap(file);
-  const side = Math.min(bmp.width, bmp.height), out = Math.min(600, side);
-  const c = document.createElement('canvas'); c.width = c.height = out;
-  c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, out, out);
-  for (const q of [0.82, 0.7, 0.55]) {
-    let url = c.toDataURL('image/webp', q);
-    if (!url.startsWith('data:image/webp')) url = c.toDataURL('image/jpeg', q);
-    if (url.length < 300000) return url;
-  }
+  const k = Math.min(bmp.width / w, bmp.height / h), sw = w * k, sh = h * k;
+  const scale = Math.min(1, bmp.width / w, bmp.height / h);
+  const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.7, 0.55]) { const url = c.toDataURL('image/jpeg', q); if (url.length < 400000) return url; }
   throw new Error('รูปใหญ่เกินไป');
 }
+const menuPhotoData = file => photoData(file, 600, 600);
 
 function openMenuEditor(id, group) {
   const m = id && menuItem(id);
@@ -1390,7 +1434,7 @@ function renderMenuEditor() {
       </div>
     </div>
     <label class="lbl">คำอธิบายสั้นๆ (ลูกค้าเห็น · ไม่บังคับ)<input value="${esc(d.desc || '')}" data-mn="desc" maxlength="120" placeholder="เช่น มะม่วงน้ำดอกไม้สุก หวานธรรมชาติ"></label>
-    ${!single(d.group) ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%) และแยกน้ำแข็ง</label>` : ''}
+    ${!single(d.group) ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%)</label>` : ''}
     <label class="check"><input type="checkbox" data-mn="soldOut" ${d.soldOut ? 'checked' : ''}> 🚫 หมดชั่วคราว (ลูกค้ายังเห็นเมนู แต่สั่งไม่ได้)</label>
     <label class="check"><input type="checkbox" data-mn="active" ${d.active !== false ? 'checked' : ''}> เปิดขาย (เอาเครื่องหมายออกเพื่อพักขายชั่วคราว)</label>
     <div class="emoji-grid">${EMOJIS.map(e => `<button type="button" class="${e === d.emoji ? 'on' : ''}" data-action="mn-emoji" data-e="${e}">${e}</button>`).join('')}</div>
@@ -1410,12 +1454,12 @@ async function saveMenuItem() {
   if (!(price > 0)) return toast(single(d.group) ? 'ใส่ราคาก่อน' : 'ใส่ราคาอย่างน้อย 1 แบบ');
   let photo = d.photoRemove ? 0 : d.photo || 0;
   try {
-    if (d.photoData) { toast('กำลังอัปโหลดรูป…'); photo = await S.saveMenuPhoto(d.id, d.photoData); }
+    if (d.photoData) { toast('กำลังอัปโหลดรูป…'); photo = await S.saveMenuPhoto(d.id, d.photoData); d.photoType = 'jpeg'; }
     else if (d.photoRemove && d.photo) await S.deleteMenuPhoto(d.id);
   } catch (e) { return toast('อัปโหลดรูปไม่ได้: ' + e.message); }
   const desc = String(d.desc || '').trim().slice(0, 120);
   const item = { id: d.id, name: d.name.trim(), emoji: d.emoji.trim() || '🥤', price, cost: Number(d.cost) || 0, group: d.group, active: d.active !== false,
-    ...(!single(d.group) ? { prices, ...(d.opts === false ? { opts: false } : {}) } : {}), ...(desc ? { desc } : {}), ...(photo ? { photo } : {}), ...(d.soldOut ? { soldOut: true } : {}) };
+    ...(!single(d.group) ? { prices, ...(d.opts === false ? { opts: false } : {}) } : {}), ...(desc ? { desc } : {}), ...(photo ? { photo, ...(d.photoType ? { photoType: d.photoType } : {}) } : {}), ...(d.soldOut ? { soldOut: true } : {}) };
   // a menu item's id stays the same, so drop cart lines whose style was removed
   ui.cart = ui.cart.filter(l => l.id !== d.id || !l.style || prices[l.style]);
   const list = d.isNew ? [...menu(), item] : menu().map(m => m.id === d.id ? item : m);
@@ -1661,8 +1705,17 @@ document.addEventListener('click', async e => {
     case 'sold-mode': ui.soldMode = !ui.soldMode; return render();
     case 'bills-toggle': ui.showBills = !ui.showBills; return render();
     case 'cart-open': return openCartSheet();
-    case 'cart-inc': cartAdd(el.dataset.id, 1, el.dataset.s || ''); render(); return openCartSheet();
-    case 'cart-dec': cartAdd(el.dataset.id, -1, el.dataset.s || ''); render(); return ui.cart.length ? openCartSheet() : $('#sheet').close();
+    case 'cart-inc': case 'cart-dec': {
+      const l = ui.cart.find(x => posKey(x) === el.dataset.k); if (!l) return;
+      cartAdd(l.id, a === 'cart-inc' ? 1 : -1, l.style || '', l.sweet, l.note); render();
+      return ui.cart.length ? openCartSheet() : $('#sheet').close();
+    }
+    case 'pick-style': ui.pick.style = el.dataset.s; return renderPick();
+    case 'pick-sweet': ui.pick.sweet = Number(el.dataset.v); return renderPick();
+    case 'pick-add': {
+      const p = ui.pick; cartAdd(p.id, 1, p.style, p.sweet, String(p.note || '').trim().slice(0, 60));
+      if (navigator.vibrate) navigator.vibrate(10); $('#sheet').close(); return render();
+    }
     case 'cart-clear': ui.cart = []; $('#sheet').close(); return render();
     case 'pay-open': return openPaySheet();
     case 'pay-method': ui.pay.method = el.dataset.m; return renderPaySheet();
@@ -1683,6 +1736,7 @@ document.addEventListener('click', async e => {
       try { await S.pushEnable(); toast('เปิดแจ้งเตือนแล้ว · กำลังส่งแจ้งเตือนทดสอบ 🔔'); } catch (e) { toast(e.message); }
       ui.pushBusy = false; ui.pushState = await S.pushState().catch(() => 'unsupported'); return render();
     case 'push-off': await S.pushDisable().catch(() => {}); ui.pushState = 'off'; toast('ปิดแจ้งเตือนบนเครื่องนี้แล้ว'); return render();
+    case 'banner-photo-remove': await S.deleteMenuPhoto('_banner'); saveLine({ banner: { ...(lineCfg().banner || {}), photo: 0 } }); return toast('ลบรูปแบนเนอร์แล้ว');
     case 'line-mode': {
       const m = el.dataset.m, cur = lineModes();
       const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
@@ -1970,6 +2024,7 @@ document.addEventListener('input', e => {
   if (t.dataset.d) { draft[t.dataset.d] = t.value; return; }
   if (t.dataset.ce) { catDraft[t.dataset.ce] = t.value; return; }
   if (t.dataset.mn) { menuDraft[t.dataset.mn] = t.type === 'checkbox' ? t.checked : t.value; return; }
+  if (t.dataset.input === 'pick-note' && ui.pick) { ui.pick.note = t.value; return; }
   if (t.dataset.sp) { menuDraft.sp[t.dataset.sp] = t.value; return; }
   if (t.dataset.pay) {
     ui.pay.received = t.value;
@@ -2012,6 +2067,7 @@ document.addEventListener('focusout', () => {
 
 // LINE settings save as soon as a value changes (no need to press บันทึก)
 document.addEventListener('change', e => {
+  if (e.target.dataset?.banner === 'text') { const text = e.target.value.trim().slice(0, 120); return setTimeout(() => { saveLine({ banner: { ...(lineCfg().banner || {}), text } }); toast('บันทึกข้อความแบนเนอร์แล้ว'); }, 250); }
   const k = e.target.dataset?.line;
   if (!k) return;
   // after the tap that moved the focus has landed (saving redraws the page)
@@ -2038,6 +2094,19 @@ document.addEventListener('change', async e => {
       if (t.checked && !confirm('เปิดให้ทุกคนที่มีลิงก์สมัครใช้ได้? (ข้อมูลยังแยกกันของใครของมัน)')) { t.checked = false; return; }
       try { await S.setOpenSignup(t.checked); toast(t.checked ? 'เปิดให้ทุกคนใช้ได้แล้ว' : 'จำกัดเฉพาะอีเมลที่อนุญาตแล้ว'); } catch (err) { toast('❌ ' + err.message); }
       return;
+    case 'posopts': S.saveSettings({ posOpts: t.checked }); return toast(t.checked ? 'หน้าขายจะถามความหวานทุกแก้ว' : 'หน้าขายแตะครั้งเดียวใส่ตะกร้า (ไม่ถามความหวาน)');
+    case 'banner-on': saveLine({ banner: { ...(lineCfg().banner || {}), on: t.checked } }); return toast(t.checked ? 'แสดงแบนเนอร์แล้ว' : 'ซ่อนแบนเนอร์แล้ว');
+    case 'bannerphoto': {
+      const file = t.files[0]; t.value = '';
+      if (!file) return;
+      try {
+        toast('กำลังอัปโหลดแบนเนอร์…');
+        const v = await S.saveMenuPhoto('_banner', await photoData(file, 1200, 600));
+        saveLine({ banner: { ...(lineCfg().banner || {}), on: true, photo: v } });
+        toast('ใส่รูปแบนเนอร์แล้ว');
+      } catch (err) { toast('❌ ' + err.message); }
+      return;
+    }
     case 'mnphoto': {
       const file = t.files[0]; t.value = '';
       if (!file || !menuDraft) return;
