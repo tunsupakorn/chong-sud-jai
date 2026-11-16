@@ -47,9 +47,16 @@ const item = id => ui.menu.find(m => m.id === id);
 const lines = () => ui.cart.map(l => ({ ...l, m: item(l.id) })).filter(l => l.m).map(l => ({ ...l, name: lineName(l.m, l.style), price: priceOf(l.m, l.style) }));
 const total = () => lines().reduce((s, l) => s + l.price * l.qty, 0);
 const cups = () => lines().filter(l => l.m.group !== 'topping').reduce((s, l) => s + l.qty, 0);
-function cartAdd(id, n, style = '') {
-  const l = ui.cart.find(x => x.id === id && x.style === style);
-  if (l) l.qty += n; else if (n > 0) ui.cart.push({ id, style, qty: n });
+// drink options: sweetness and ice on the side (the Worker checks them again)
+const SWEET = [0, 25, 50, 100];
+const keyOf = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.ice ? 1 : 0}`;
+const optTags = l => [l.sweet !== undefined && l.sweet !== 100 ? `<span class="opt-tag">🍯 หวาน ${l.sweet}%</span>` : '',
+  l.ice || l.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : ''].join('');
+const photoSrc = m => m.photo ? `${API_BASE}/photo/${encodeURIComponent(m.id)}?v=${m.photo}` : '';
+function cartAdd(id, n, style = '', sweet, ice) {
+  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(ice ? { ice: true } : {}) };
+  const l = ui.cart.find(x => keyOf(x) === keyOf(add));
+  if (l) l.qty += n; else if (n > 0) ui.cart.push({ ...add, qty: n });
   ui.cart = ui.cart.filter(x => x.qty > 0);
   try { sessionStorage.setItem('kaa_cart', JSON.stringify(ui.cart)); } catch {}
 }
@@ -88,7 +95,7 @@ function viewMenu() {
       `<button aria-selected="${ui.tab === k}" data-action="tab" data-t="${k}">${l}</button>`).join('')}</div>
     <div class="menu-grid">${drinks.map(m => { const q = qtyOf(m.id); return `<div class="menu-cell">
       <button class="menu-btn ${q ? 'in' : ''}" data-action="add" data-id="${esc(m.id)}" ${canOrder ? '' : 'disabled'}>
-        <span class="m-emoji">${esc(m.emoji)}</span><span class="m-name">${esc(m.name)}</span><b class="num">${priceRange(m)}</b>
+        ${m.photo ? `<img class="m-photo" src="${photoSrc(m)}" alt="" loading="lazy">` : `<span class="m-emoji">${esc(m.emoji)}</span>`}<span class="m-name">${esc(m.name)}</span><b class="num">${priceRange(m)}</b>
         ${q ? `<i class="m-qty">${q}</i>` : ''}</button>
       ${q ? `<button class="m-minus" data-action="undo" data-id="${esc(m.id)}" aria-label="ลด ${esc(m.name)}">−</button>` : ''}</div>`; }).join('')
       || '<p class="muted center pad">ยังไม่มีเมนู</p>'}</div>
@@ -133,9 +140,9 @@ function viewCheckout() {
       : '<p class="small muted" style="margin:10px 0 0">มารับที่ร้านตามเวลาด้านล่าง ร้านจะแจ้งใน LINE เมื่อพร้อม</p>'}
     </section>
     <section class="card"><h3>🧾 รายการ</h3>
-      <ul class="cart-lines">${lines().map(l => `<li><span>${esc(l.m.emoji)} ${esc(l.name)}</span>
-        <span class="qty"><button class="icon-btn" data-action="dec" data-id="${esc(l.id)}" data-s="${l.style}" aria-label="ลด">−</button><b>${l.qty}</b>
-        <button class="icon-btn" data-action="inc" data-id="${esc(l.id)}" data-s="${l.style}" aria-label="เพิ่ม">+</button></span>
+      <ul class="cart-lines">${lines().map(l => `<li><span>${esc(l.m.emoji)} ${esc(l.name)} ${optTags(l)}</span>
+        <span class="qty"><button class="icon-btn" data-action="dec" data-k="${esc(keyOf(l))}" aria-label="ลด">−</button><b>${l.qty}</b>
+        <button class="icon-btn" data-action="inc" data-k="${esc(keyOf(l))}" aria-label="เพิ่ม">+</button></span>
         <b class="num">${baht(l.price * l.qty)}</b></li>`).join('')}</ul>
       <div class="close-total"><span>รวม ${cups()} แก้ว</span><b class="num">${baht(sum)}</b></div>
       ${short ? '<button class="btn ghost" style="width:100%;margin-top:10px" data-action="back">＋ เลือกเมนูเพิ่ม</button>' : ''}
@@ -183,7 +190,7 @@ function viewOrder() {
       <button class="link small" data-action="claim">โอนแล้วแต่ไม่มีสลิป แจ้งร้านเฉยๆ</button>
       <button class="btn ghost" data-action="to-cash">เปลี่ยนเป็นจ่ายเงินสดตอนรับ</button></div>`}</section>` : ''}
     <section class="card"><h3>🧾 รายการ</h3>
-      <ul class="cart-lines">${o.items.map(i => `<li><span>${esc(i.name)}</span><span>×${i.qty}</span><b class="num">${baht(i.price * i.qty)}</b></li>`).join('')}</ul>
+      <ul class="cart-lines">${o.items.map(i => `<li><span>${esc(i.name)} ${optTags(i)}</span><span>×${i.qty}</span><b class="num">${baht(i.price * i.qty)}</b></li>`).join('')}</ul>
       <div class="close-total"><span>${o.paid ? 'ชำระแล้ว ✅' : o.payMethod === 'cash' ? 'จ่ายเงินสดตอนรับ' : 'ยอดรวม'}</span><b class="num">${baht(o.total)}</b></div>
     </section>
     <div class="btn-col" style="margin-top:16px">
@@ -233,19 +240,39 @@ async function refreshOrder(id) {
   } catch (e) { toast(e.message); }
 }
 
-function openStylePicker(m) {
-  $('#sheet').innerHTML = `<div class="sheet-body"><div class="grab" aria-hidden="true"></div>
-    <div class="row between"><h2>${esc(m.emoji)} ${esc(m.name)}</h2><button class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
-    <div class="style-pick">${stylesOf(m).map(k => `<button class="style-btn" data-action="style-add" data-id="${esc(m.id)}" data-s="${k}">
-      <span class="m-emoji">${STYLES[k].emoji}</span><span>${STYLES[k].word}</span><b class="num">${baht(m.prices[k])}</b></button>`).join('')}</div></div>`;
-  $('#sheet').showModal();
+// ---------- item detail: photo, description, style, sweetness, ice, quantity ----------
+function openDetail(m) {
+  const st = stylesOf(m);
+  ui.det = { id: m.id, style: st[0] || '', sweet: 100, ice: false, qty: 1 };
+  renderDetail();
+  if (!$('#sheet').open) $('#sheet').showModal();
+}
+function renderDetail() {
+  const d = ui.det, m = item(d.id);
+  if (!m) return $('#sheet').close();
+  const st = stylesOf(m), price = priceOf(m, d.style);
+  const iceOk = m.opts && d.style !== 'hot';
+  $('#sheet').innerHTML = `<div class="sheet-body det">
+    <div class="grab" aria-hidden="true"></div>
+    ${m.photo ? `<img class="det-photo" src="${photoSrc(m)}" alt="${esc(m.name)}">` : `<div class="det-emoji">${esc(m.emoji)}</div>`}
+    <div class="row between"><h2>${esc(m.name)}</h2><button class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
+    ${m.desc ? `<p class="muted" style="margin:-6px 0 0">${esc(m.desc)}</p>` : ''}
+    ${st.length > 1 ? `<div><small class="muted">แบบ</small><div class="seg">${st.map(k => `<button aria-selected="${d.style === k}" data-action="det-style" data-s="${k}">
+      ${STYLES[k].emoji} ${STYLES[k].word} <b class="num">${baht(m.prices[k])}</b></button>`).join('')}</div></div>` : ''}
+    ${m.opts ? `<div><small class="muted">ความหวาน</small><div class="seg">${SWEET.map(v => `<button aria-selected="${d.sweet === v}" data-action="det-sweet" data-v="${v}">${v}%</button>`).join('')}</div></div>` : ''}
+    ${iceOk ? `<label class="check det-ice"><input type="checkbox" data-input="det-ice" ${d.ice ? 'checked' : ''}> 🧊 แยกน้ำแข็ง</label>` : ''}
+    <div class="row between"><small class="muted">จำนวน</small>
+      <span class="qty"><button class="icon-btn" data-action="det-qty" data-n="-1" aria-label="ลด" ${d.qty <= 1 ? 'disabled' : ''}>−</button><b class="det-n">${d.qty}</b>
+      <button class="icon-btn" data-action="det-qty" data-n="1" aria-label="เพิ่ม">+</button></span></div>
+    <button class="btn primary big" data-action="det-add">＋ ใส่ตะกร้า · ${baht(price * d.qty)}</button>
+  </div>`;
 }
 
 async function placeOrder() {
   ui.busy = true; ui.error = ''; render();
   try {
     const o = await api('/orders', { method: 'POST', body: {
-      items: ui.cart.map(({ id, style, qty }) => ({ id, style, qty })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note,
+      items: ui.cart.map(({ id, style, qty, sweet, ice }) => ({ id, style, qty, ...(sweet !== undefined ? { sweet } : {}), ...(ice ? { ice: true } : {}) })), pickup: ui.pickup, payMethod: ui.pay, note: ui.note,
       fulfil: { mode: ui.fulfil.mode, detail: ui.fulfil.detail, phone: ui.fulfil.phone } } });
     try { const saved = JSON.parse(localStorage.getItem('kaa_fulfil') || '{}'); localStorage.setItem('kaa_fulfil', JSON.stringify({ ...saved, phone: ui.fulfil.phone || saved.phone, [ui.fulfil.mode]: ui.fulfil.detail })); } catch {}
     ui.cart = []; ui.note = '';
@@ -334,15 +361,26 @@ document.addEventListener('click', async e => {
     case 'tab': ui.tab = el.dataset.t; return render();
     case 'add': {
       const m = item(id); if (!m) return;
-      const st = stylesOf(m);
-      if (st.length > 1) return openStylePicker(m);
-      cartAdd(id, 1, st[0] || ''); if (navigator.vibrate) navigator.vibrate(10); return render();
+      if (m.group !== 'topping') return openDetail(m); // toppings go straight in
+      cartAdd(id, 1, ''); if (navigator.vibrate) navigator.vibrate(10); return render();
     }
-    case 'style-add': cartAdd(id, 1, el.dataset.s); $('#sheet').close(); return render();
+    case 'det-style': ui.det.style = el.dataset.s; if (ui.det.style === 'hot') ui.det.ice = false; return renderDetail();
+    case 'det-sweet': ui.det.sweet = Number(el.dataset.v); return renderDetail();
+    case 'det-qty': ui.det.qty = Math.max(1, Math.min(20, ui.det.qty + Number(el.dataset.n))); return renderDetail();
+    case 'det-add': {
+      const d = ui.det, m = item(d.id); if (!m) return;
+      cartAdd(d.id, d.qty, d.style, m.opts ? d.sweet : undefined, m.opts && d.ice && d.style !== 'hot');
+      if (navigator.vibrate) navigator.vibrate(10);
+      $('#sheet').close(); toast(`ใส่ตะกร้าแล้ว · ${m.name}`); return render();
+    }
     case 'close-sheet': return $('#sheet').close();
-    case 'undo': { const l = [...ui.cart].reverse().find(x => x.id === id); if (l) cartAdd(id, -1, l.style); return render(); }
-    case 'inc': cartAdd(id, 1, el.dataset.s); return render();
-    case 'dec': cartAdd(id, -1, el.dataset.s); if (!ui.cart.length) return go('menu'); return render();
+    case 'undo': { const l = [...ui.cart].reverse().find(x => x.id === id); if (l) cartAdd(id, -1, l.style, l.sweet, l.ice); return render(); }
+    case 'inc': case 'dec': {
+      const l = ui.cart.find(x => keyOf(x) === el.dataset.k); if (!l) return;
+      cartAdd(l.id, el.dataset.action === 'inc' ? 1 : -1, l.style, l.sweet, l.ice);
+      if (!ui.cart.length) return go('menu');
+      return render();
+    }
     case 'checkout': return go('checkout');
     case 'back': case 'home': clearInterval(poll); history.replaceState(null, '', location.pathname);
       try { await loadMenu(); } catch {} return go('menu');
@@ -370,6 +408,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', e => {
   if (e.target.dataset.input === 'at') ui.pickup.at = e.target.value;
+  if (e.target.dataset.input === 'det-ice' && ui.det) ui.det.ice = e.target.checked;
   if (e.target.dataset.input === 'slip') { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendSlip(f); }
 });
 document.addEventListener('input', e => {

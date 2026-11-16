@@ -21,12 +21,18 @@ export const toHM = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${S
 
 export const stylesOf = m => m.group === 'topping' || !m.prices ? [] : Object.keys(STYLES).filter(k => Number(m.prices[k]) > 0);
 export const priceOf = (m, style) => (style && Number(m.prices?.[style])) || Number(m.price) || 0;
+// drink options: sweetness level and ice on the side (off for toppings, or when the shop unticks it for an item)
+export const SWEET = [0, 25, 50, 100];
+export const hasOpts = m => m.group !== 'topping' && m.opts !== false;
+export const optText = i => [i.sweet !== undefined && i.sweet !== 100 ? `หวาน ${i.sweet}%` : '', i.iceSep ? 'แยกน้ำแข็ง' : ''].filter(Boolean).join(' · ');
+export const itemLabel = i => { const o = optText(i); return o ? `${i.name} (${o})` : i.name; };
 export const lineName = (m, style) => style && stylesOf(m).length > 1 ? `${m.name} ${STYLES[style]}` : m.name;
 
 // What customers may see: never the cost per cup.
 export function publicMenu(menu = []) {
   return menu.filter(m => m.active !== false && priceOf(m, stylesOf(m)[0]) > 0)
     .map(m => ({ id: m.id, name: m.name, emoji: m.emoji || '🥤', group: m.group || 'drink',
+      ...(m.desc ? { desc: String(m.desc).slice(0, 120) } : {}), ...(m.photo ? { photo: m.photo } : {}), opts: hasOpts(m),
       ...(m.group === 'topping' ? { price: Number(m.price) || 0 } : { prices: Object.fromEntries(stylesOf(m).map(k => [k, Number(m.prices[k])])), price: priceOf(m, stylesOf(m)[0]) }) }));
 }
 
@@ -46,10 +52,16 @@ export function priceCart(menu, lines) {
     if (st.length && !st.includes(style)) throw new OrderError(`${m.name} ไม่มีแบบนี้`, 409);
     const qty = Math.floor(Number(l.qty));
     if (!(qty >= 1 && qty <= MAX_QTY)) throw new OrderError('จำนวนไม่ถูกต้อง');
-    const key = `${m.id}|${style}`;
+    let opt = {};
+    if (hasOpts(m)) {
+      const sweet = l.sweet === undefined || l.sweet === null || l.sweet === '' ? 100 : Number(l.sweet);
+      if (!SWEET.includes(sweet)) throw new OrderError('ระดับความหวานไม่ถูกต้อง');
+      opt = { sweet, ...(l.ice && style !== 'hot' ? { iceSep: true } : {}) };
+    }
+    const key = `${m.id}|${style}|${opt.sweet ?? ''}|${opt.iceSep ? 1 : 0}`;
     const prev = merged.get(key);
     if (prev) prev.qty += qty;
-    else merged.set(key, { id: m.id, name: lineName(m, style), qty, price: priceOf(m, style), cost: Number(m.cost) || 0, topping: m.group === 'topping', ...(style ? { style } : {}) });
+    else merged.set(key, { id: m.id, name: lineName(m, style), qty, price: priceOf(m, style), cost: Number(m.cost) || 0, topping: m.group === 'topping', ...(style ? { style } : {}), ...opt });
   }
   const items = [...merged.values()];
   if (items.some(i => i.qty > MAX_QTY)) throw new OrderError('จำนวนเยอะเกินไป');
@@ -109,7 +121,7 @@ export function shopAction(o, action, reason = '', now = Date.now()) {
 export function saleFromOrder(id, o, hm, now = Date.now()) {
   return { id: `line-${id}`, type: 'income', cat: 'sales', method: o.payMethod === 'promptpay' ? 'promptpay' : 'cash', amount: o.total,
     date: o.day, time: hm, source: 'pos', channel: 'line', cups: o.cups, orderId: id, orderNo: o.no,
-    merchant: `${o.no} ${o.items.map(i => `${i.name}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')}`,
+    merchant: `${o.no} ${o.items.map(i => `${itemLabel(i)}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')}`,
     items: o.items, createdAt: now, updatedAt: now,
     // the customer's slip is stored at slips/line-{orderId} = slips/{tx.id}, so the POS shows it on the bill
     ...(o.hasSlip ? { hasSlip: true } : {}), ...(o.slipRef ? { qrRef: o.slipRef } : {}) };

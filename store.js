@@ -389,6 +389,18 @@ export async function allowEmail(email, name = '') {
 }
 export async function removeEmail(email) { await fb.F.deleteDoc(fb.F.doc(fb.db, 'allow', emailKey(email))); }
 export async function setOpenSignup(open) { await fb.F.setDoc(fb.F.doc(fb.db, 'config', 'access'), { open: !!open }, { merge: true }); }
+// ---- menu photos: small images in users/{shop}/menuPhotos/{itemId}, served to customers by the Worker (/photo/{id}?v=) ----
+export const photoUrl = (id, v) => (LINE_API && v ? `${LINE_API.replace(/\/$/, '')}/photo/${encodeURIComponent(id)}?v=${v}` : '');
+export async function saveMenuPhoto(id, data) {
+  if (state.mode !== 'cloud') throw new Error('ต้องล็อกอินบัญชีร้านก่อน ถึงจะเพิ่มรูปได้');
+  const v = Date.now();
+  await fb.F.setDoc(fb.F.doc(...userPath('menuPhotos', id)), { data, v, at: v });
+  return v;
+}
+export async function deleteMenuPhoto(id) {
+  if (state.mode === 'cloud') await fb.F.deleteDoc(fb.F.doc(...userPath('menuPhotos', id))).catch(() => {});
+}
+
 // ---- notifications on this device (Web Push) for new LINE orders ----
 // → 'unsupported' | 'ios-install' | 'denied' | 'on' | 'off'
 export async function pushState() {
