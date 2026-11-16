@@ -861,6 +861,24 @@ const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':
 const openOrders = () => [...state.orders].sort((a, b) => pickupMin(a) - pickupMin(b) || (a.createdAt || 0) - (b.createdAt || 0));
 const newOrderCount = () => state.orders.filter(o => o.status === 'new').length;
 
+// LINE messages to customers this month (push quota) and the "accepted" notice switch
+function quotaRow() {
+  if (state.mode !== 'cloud') return '';
+  if (ui.quota === undefined) { ui.quota = null; S.lineQuota().then(q => { ui.quota = q; render(); }).catch(e => { ui.quota = { error: e.message }; render(); }); }
+  const q = ui.quota, on = lineCfg().notifyAccept !== false, per = on ? 2 : 1;
+  let bar = '<p class="small muted" style="margin:0">กำลังดูโควตา…</p>';
+  if (q?.error) bar = `<p class="small muted" style="margin:0">ดูโควตาไม่ได้: ${esc(q.error)}</p>`;
+  else if (q && q.limit === null) bar = `<p class="small" style="margin:0">📨 ส่งข้อความหาลูกค้าเดือนนี้ <b>${nf.format(q.used)}</b> ข้อความ (แพ็กเกจไม่จำกัด)</p>`;
+  else if (q) {
+    const left = Math.max(0, q.limit - q.used), p = q.limit ? q.used / q.limit : 0;
+    bar = `<p class="small" style="margin:0">📨 ข้อความแจ้งลูกค้า เดือนนี้ <b class="num">${nf.format(q.used)} / ${nf.format(q.limit)}</b></p>
+      <div class="meter quota ${p >= 1 ? 'full' : p >= 0.8 ? 'near' : ''}"><div style="width:${Math.min(100, Math.round(p * 100))}%"></div></div>
+      <p class="small muted" style="margin:0">${left ? `เหลือ ${nf.format(left)} · พอสำหรับอีก ~${nf.format(Math.floor(left / per))} ออเดอร์ (ออเดอร์ละ ${per} ข้อความ)` : '⚠️ ใช้ครบแล้ว ลูกค้าจะไม่ได้ข้อความแจ้งจนถึงเดือนหน้า (หน้าออเดอร์ยังแสดงสถานะ)'}</p>`;
+  }
+  return `<div class="quota-row">${bar}
+    <label class="check" style="margin:4px 0 0"><input type="checkbox" data-input="notify-accept" ${on ? 'checked' : ''}> แจ้งลูกค้าตอนกด "รับออเดอร์" (ใช้ 1 ข้อความ/ออเดอร์)</label></div>`;
+}
+
 // notifications on this device
 function pushRow() {
   if (ui.pushState === undefined) { ui.pushState = 'checking'; S.pushState().then(s => { ui.pushState = s; render(); }).catch(() => { ui.pushState = 'unsupported'; render(); }); }
@@ -883,6 +901,7 @@ function lineCard() {
   return `<section class="card" id="line"><h3>💚 สั่งผ่าน LINE OA</h3>
     <p class="muted small">ลูกค้าสั่งและจ่ายผ่าน LINE ออเดอร์เข้ามาที่ 🛒 ขาย › ออเดอร์ LINE · ตั้งค่าบัญชี LINE ตามคู่มือใน README</p>
     ${pushRow()}
+    ${quotaRow()}
     <div class="seg"><button aria-selected="${c.open}" data-action="line-open" data-v="1">🟢 เปิดรับออเดอร์</button>
       <button aria-selected="${!c.open}" data-action="line-open" data-v="">⏸️ ปิดรับ</button></div>
     <p class="small muted" style="margin:12px 0 4px">วิธีรับที่ให้ลูกค้าเลือก</p>
@@ -935,7 +954,8 @@ function orderCard(o) {
     <ul class="order-items">${(o.items || []).map(i => `<li><span>${esc(i.name)} ${optTags(i)}</span><b>×${i.qty}</b></li>`).join('')}</ul>
     ${o.note ? `<p class="order-note">📝 ${esc(o.note)}</p>` : ''}
     <div class="row between wrap gap"><b class="num order-total">${baht(o.total)}</b>${pay}</div>
-    <div class="order-actions">${o.hasSlip ? `<button class="btn ghost sm" data-action="ord-slip" data-id="${esc(o.id)}">🧾 ดูสลิป</button>` : ''}${actions}</div>
+    <div class="order-actions">${o.hasSlip ? `<button class="btn ghost sm" data-action="ord-slip" data-id="${esc(o.id)}">🧾 ดูสลิป</button>` : ''}${actions}
+      <button class="btn ghost sm" data-action="ord-chat" data-id="${esc(o.id)}" title="คัดลอกชื่อลูกค้า แล้วเปิดแชทของร้าน">💬 แชท</button></div>
   </article>`;
 }
 
@@ -1754,6 +1774,13 @@ document.addEventListener('click', async e => {
       const o = orderById(el.dataset.id); if (!o) return;
       return orderAction(o.id, 'cash', `${o.no} รับเงินสด ${baht(o.total)} · บันทึกยอดขายแล้ว`);
     }
+    case 'ord-chat': {
+      // LINE has no link to one customer's chat: copy the name, open the shop's chat list to search it
+      const o = orderById(el.dataset.id); if (!o) return;
+      try { await navigator.clipboard.writeText(o.displayName || ''); } catch {}
+      window.open('https://chat.line.biz/', '_blank', 'noopener');
+      return toast(`คัดลอกชื่อ "${o.displayName || ''}" แล้ว · วางในช่องค้นหาแชทของ LINE OA`);
+    }
     case 'ord-slip': {
       const o = orderById(el.dataset.id); if (!o) return;
       $('#sheet').innerHTML = `<div class="sheet-body"><div class="grab" aria-hidden="true"></div>
@@ -2094,6 +2121,7 @@ document.addEventListener('change', async e => {
       if (t.checked && !confirm('เปิดให้ทุกคนที่มีลิงก์สมัครใช้ได้? (ข้อมูลยังแยกกันของใครของมัน)')) { t.checked = false; return; }
       try { await S.setOpenSignup(t.checked); toast(t.checked ? 'เปิดให้ทุกคนใช้ได้แล้ว' : 'จำกัดเฉพาะอีเมลที่อนุญาตแล้ว'); } catch (err) { toast('❌ ' + err.message); }
       return;
+    case 'notify-accept': saveLine({ notifyAccept: t.checked }); render(); return toast(t.checked ? 'จะแจ้งลูกค้าตอนรับออเดอร์' : 'ไม่แจ้งตอนรับออเดอร์ (แจ้งเฉพาะตอนพร้อม)');
     case 'posopts': S.saveSettings({ posOpts: t.checked }); return toast(t.checked ? 'หน้าขายจะถามความหวานทุกแก้ว' : 'หน้าขายแตะครั้งเดียวใส่ตะกร้า (ไม่ถามความหวาน)');
     case 'banner-on': saveLine({ banner: { ...(lineCfg().banner || {}), on: t.checked } }); return toast(t.checked ? 'แสดงแบนเนอร์แล้ว' : 'ซ่อนแบนเนอร์แล้ว');
     case 'bannerphoto': {

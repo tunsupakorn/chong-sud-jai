@@ -7,7 +7,7 @@
 import * as Shop from './shop.js';
 import { Firestore, withRetry } from './firestore.js';
 import { googleToken, verifyFirebaseToken, firebaseCustomToken } from './auth.js';
-import { validSignature, lineApi, verifyLiffToken } from './line.js';
+import { validSignature, lineApi, verifyLiffToken, accessToken } from './line.js';
 import { payload as ppPayload, qrPng } from './qrpng.js';
 import { subId, sendPush } from './push.js';
 
@@ -71,7 +71,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   async function menu() {
     const { settings, cfg, menu, name } = await loadShop();
     const now = Shop.bkk();
-    return { shop: { name, modes: Shop.fulfilModes(cfg), deliveryMin: Math.max(0, Number(cfg.deliveryMin) || 0), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
+    return { shop: { name, ...(env.BOT_BASIC_ID ? { oaId: env.BOT_BASIC_ID } : {}), modes: Shop.fulfilModes(cfg), deliveryMin: Math.max(0, Number(cfg.deliveryMin) || 0), open: cfg.open, from: cfg.from, to: cfg.to, prep: Number(cfg.prep) || 0, note: cfg.note, promptpay: !!settings.promptpay,
       now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to),
       ...(cfg.banner?.on && (cfg.banner.text || cfg.banner.photo) ? { banner: { text: String(cfg.banner.text || '').slice(0, 120), ...(cfg.banner.photo ? { photo: cfg.banner.photo } : {}) } } : {}) },
       menu: Shop.publicMenu(menu) };
@@ -187,7 +187,8 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     });
     // customer messages (push counts against the OA's monthly quota: only these two)
     // the customer hears from the shop only once it has accepted the order (push: counts against the OA's monthly quota)
-    if (action === 'accept') await line('message/push', { to: after.lineUserId, messages: [orderBubble(id, after, 'ร้านรับออเดอร์แล้ว ✅')] }).catch(e => console.error(e));
+    const notifyAccept = action === 'accept' && (await loadShop()).cfg.notifyAccept !== false; // the shop can switch this one off to save quota
+    if (notifyAccept) await line('message/push', { to: after.lineUserId, messages: [orderBubble(id, after, 'ร้านรับออเดอร์แล้ว ✅')] }).catch(e => console.error(e));
     if (action === 'ready') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
       text: `${Shop.readyText(after)}\n${itemsText(after)}\n${after.paid ? 'ชำระแล้ว ✅' : `ยอด ${baht(after.total)} · ${payText(after)}`}` }] }).catch(e => console.error(e));
     if (action === 'cancel') await line('message/push', { to: after.lineUserId, messages: [{ type: 'text',
@@ -206,6 +207,12 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     if (ev.type !== 'message' || ev.message?.type !== 'text' || !userId) return;
     const text = ev.message.text.trim();
     const mine = async () => (await ordersOn(Shop.bkk().day)).filter(d => d.data.lineUserId === userId);
+    // "💬 L021: …" from the order page's chat button: a person should answer, so no bot reply; ring the shop's devices instead
+    const chat = /^💬\s*(L\d{3,})?\s*:?\s*([\s\S]*)$/.exec(text);
+    if (chat) {
+      const who = (await mine().catch(() => [])).find(x => !chat[1] || x.data.no === chat[1]);
+      return notifyShop(`💬 ลูกค้าทักแชท${chat[1] ? ` · ${chat[1]}` : ''}${who ? ` · ${who.data.displayName}` : ''}`, chat[2].trim().slice(0, 120) || 'เปิดแอป LINE OA เพื่อตอบลูกค้า', `chat-${userId}`);
+    }
     const m = /ออเดอร์\s*(L\d{3,})/.exec(text);
     if (m) { // customer asks about an order by its number: answering with reply is free
       const d = (await mine()).find(x => x.data.no === m[1]);
@@ -297,6 +304,13 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
         const owner = claims && (claims.lineOwner === true
           || (claims.email_verified && String(claims.email || '').toLowerCase() === String(env.OWNER_EMAIL || '').toLowerCase()));
         if (!owner) return send({ error: 'เฉพาะบัญชีเจ้าของร้าน' }, 403);
+        // LINE push quota this month (only push messages count; replies are free)
+        if (req.method === 'GET' && parts[1] === 'quota') {
+          const h = { Authorization: `Bearer ${await accessToken(env, fetchFn)}` };
+          const [q, c] = await Promise.all(['quota', 'quota/consumption'].map(p => fetchFn(`https://api.line.me/v2/bot/message/${p}`, { headers: h }).then(r => r.json())));
+          const { cfg } = await loadShop();
+          return send({ type: q.type, limit: q.type === 'limited' ? Number(q.value) || 0 : null, used: Number(c.totalUsage) || 0, notifyAccept: cfg.notifyAccept !== false });
+        }
         if (req.method === 'POST' && parts[1] === 'push') {
           const body = await req.json().catch(() => ({}));
           const ep = String(body.endpoint || '');

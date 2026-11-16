@@ -200,6 +200,7 @@ function viewOrder() {
     </section>
     <div class="btn-col" style="margin-top:16px">
       ${o.status === 'new' && !o.payClaimed ? '<button class="btn danger" data-action="cancel">ยกเลิกออเดอร์</button>' : ''}
+      ${ui.shop?.oaId ? `<a class="btn ghost" href="https://line.me/R/oaMessage/${encodeURIComponent(ui.shop.oaId)}/?${encodeURIComponent(`💬 ${o.no}: `)}">💬 แชทกับร้าน</a>` : ''}
       <button class="btn ghost" data-action="home">🥤 สั่งเพิ่ม</button>
       ${window.liff?.isInClient?.() ? '<button class="btn ghost" data-action="close">กลับไปที่แชท</button>' : ''}</div>`;
 }

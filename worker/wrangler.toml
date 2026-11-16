@@ -13,6 +13,8 @@ LINE_LOGIN_CHANNEL_ID = "2012622553"
 LIFF_ID = "2012622553-NfVZ93EA"
 ALLOWED_ORIGINS = "https://tunsupakorn.github.io"
 SHOP_NAME = "จุกจิก คาฟ่า"
+# LINE ID ของ OA (ใช้ทำปุ่ม "แชทกับร้าน" ในหน้าออเดอร์ของลูกค้า)
+BOT_BASIC_ID = "@157zqolw"
 # LINE userId ที่เข้าแอปร้าน (POS) ได้ คั่นด้วย , (ดูรหัสได้จากหน้าล็อกอินของแอปตอนกด "เข้าสู่ระบบด้วย LINE")
 OWNER_LINE_IDS = "U3547fc036b08bd88312d40108b3b491f"
 

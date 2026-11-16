@@ -525,3 +525,9 @@ a.btn.line-btn { color: #fff; }
 .sweet-bars li { display: grid; grid-template-columns: 44px 1fr 48px; align-items: center; gap: 8px; font-size: .9rem; }
 .sweet-bars i { display: block; height: 12px; border-radius: 6px; background: var(--bar); min-width: 2px; }
 .sweet-bars b { text-align: right; }
+/* LINE quota */
+.quota-row { display: grid; gap: 6px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; }
+.meter.quota { margin: 2px 0; }
+.meter.quota div { background: #06C755; }
+.meter.quota.near div { background: var(--orange); }
+.meter.quota.full div { background: var(--danger); }
