@@ -21,3 +21,5 @@ export const inviteOnly = false;
 export const lineApi = "https://jukjik-kaa-line.jukjik-kaa.workers.dev";
 // ล็อกอินแอปร้านด้วย LINE: LIFF app ที่ Endpoint URL = หน้าแอปนี้ (ดู README ขั้นที่ 5.4)
 export const ownerLiffId = "2012622553-L0dutqep";
+// แจ้งเตือนออเดอร์ใหม่ (Web Push): public key ของ VAPID (ไม่ใช่ความลับ · private key อยู่ใน Cloudflare)
+export const vapidPublicKey = "BK8FbXvHdOBmlDgHAG9IU5ID_5Qxrsd3NePxDjJM3WZeSJQ8cn-Z3I6KjeS6_EiqtHu-7Sx1K5N6KpWvmPVXqZg";

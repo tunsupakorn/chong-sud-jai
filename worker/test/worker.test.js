@@ -22,7 +22,7 @@ async function firebaseToken(claims) {
 }
 
 // ---------- fake services ----------
-let docs, pushes, replies, clock;
+let docs, pushes, replies, clock, pushed = [];
 const ROOT = 'projects/proj/databases/(default)/documents/';
 const reply = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const fsErr = (status, code) => reply({ error: { status, code } }, code);
@@ -47,6 +47,10 @@ async function fakeFetch(url, opts = {}) {
     assert.equal(opts.headers.Authorization, 'Bearer ltok');
     (url.endsWith('push') ? pushes : replies).push(JSON.parse(body));
     return reply({});
+  }
+  if (url.startsWith('https://push.test/')) {
+    pushed.push({ url, auth: opts.headers.Authorization });
+    return new Response('', { status: url.includes('gone') ? 410 : 201 });
   }
   if (url.startsWith('https://firestore.googleapis.com/v1/')) {
     assert.equal(opts.headers.Authorization, 'Bearer gtok');
@@ -109,7 +113,7 @@ const call = async (method, path, { token, body, headers = {} } = {}) => {
 };
 
 beforeEach(() => {
-  clock = 0; pushes = []; replies = [];
+  clock = 0; pushes = []; replies = []; pushed = [];
   // always open: hours cover the whole day so the test does not depend on the clock
   docs = { [SHOP]: { data: { settings: { menu, promptpay: '0812345678', line: { open: true, from: '00:00', to: '23:59', prep: 0 } } }, updateTime: '0' } };
   resetGoogleToken(); resetFirebaseKeys();
@@ -281,4 +285,34 @@ test('QR image link: PNG for an unpaid PromptPay order only', async () => {
   const c = await call('POST', '/orders', { token: 'cust-B', body: { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' } });
   assert.equal((await app(new Request(`https://w.test/qr/${c.data.id}.png`))).status, 404);
   assert.equal((await app(new Request('https://w.test/qr/nope.png'))).status, 404);
+});
+
+test('shop push: subscribe (owner only), notified on new order and slip, peek shows the text, gone subs switched off', async () => {
+  const vk = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', vk.privateKey);
+  app = createApp({ ...env, VAPID_PRIVATE_JWK: JSON.stringify(jwk) }, fakeFetch);
+  const owner = await firebaseToken({ email: 'owner@shop.com' });
+  assert.equal((await call('POST', '/shop/push', { token: await firebaseToken({ email: 'x@y.z' }), body: { endpoint: 'https://push.test/a' } })).status, 403);
+  assert.equal((await call('POST', '/shop/push', { token: owner, body: { endpoint: 'javascript:1' } })).status, 400);
+  const sub = await call('POST', '/shop/push', { token: owner, body: { endpoint: 'https://push.test/tablet', device: 'Android' } });
+  await call('POST', '/shop/push', { token: owner, body: { endpoint: 'https://push.test/gone-phone' } });
+  pushed = [];
+  const o = await call('POST', '/orders', { token: 'cust-A', body: { items: [{ id: 'm_thaitea', qty: 2 }], payMethod: 'promptpay' } });
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(pushed.length, 2);
+  // VAPID header: ES256 JWT for the push service origin, signed by our key
+  const [, t, k] = /^vapid t=([^,]+), k=(.+)$/.exec(pushed[0].auth);
+  const [h, p, sg] = t.split('.');
+  assert.equal(JSON.parse(Buffer.from(p, 'base64url')).aud, 'https://push.test');
+  assert.ok(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, vk.publicKey, Buffer.from(sg, 'base64url'), enc.encode(`${h}.${p}`)));
+  assert.equal(Buffer.from(k, 'base64url').length, 65);
+  const peek = await call('GET', `/push/peek/${sub.data.id}`);
+  assert.equal(peek.data.title, '💚 ออเดอร์ใหม่');
+  assert.match(peek.data.body, /L001 · ชาไทย ปั่น×2 · ฿70\n.*มารับเองที่ร้าน.*พร้อมเพย์/);
+  // the expired device is switched off, the next push only reaches the tablet
+  pushed = [];
+  await call('POST', `/orders/${o.data.id}/slip`, { token: 'cust-A', body: { image: 'data:image/jpeg;base64,AAAA' } });
+  await new Promise(r => setTimeout(r, 50));
+  assert.deepEqual(pushed.map(x => x.url), ['https://push.test/tablet']);
+  assert.match((await call('GET', `/push/peek/${sub.data.id}`)).data.title, /แนบสลิป/);
 });

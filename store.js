@@ -1,5 +1,5 @@
 // Data layer: works locally (localStorage) and switches to Firebase Firestore for multi-device sync.
-import { ownerLiffId as OWNER_LIFF_ID, lineApi as LINE_API, firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
+import { vapidPublicKey as VAPID_KEY, ownerLiffId as OWNER_LIFF_ID, lineApi as LINE_API, firebaseConfig as FILE_CONFIG, ownerUid as OWNER_UID, ownerEmail as OWNER_EMAIL, shopDataUid as SHOP_UID, inviteOnly as INVITE_ONLY, privateApp as PRIVATE_APP } from './firebase-config.js';
 export const inviteOnly = !!INVITE_ONLY && !PRIVATE_APP;
 export const privateApp = !!PRIVATE_APP;
 
@@ -389,6 +389,43 @@ export async function allowEmail(email, name = '') {
 }
 export async function removeEmail(email) { await fb.F.deleteDoc(fb.F.doc(fb.db, 'allow', emailKey(email))); }
 export async function setOpenSignup(open) { await fb.F.setDoc(fb.F.doc(fb.db, 'config', 'access'), { open: !!open }, { merge: true }); }
+// ---- notifications on this device (Web Push) for new LINE orders ----
+// → 'unsupported' | 'ios-install' | 'denied' | 'on' | 'off'
+export async function pushState() {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return ios && !standalone ? 'ios-install' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+async function shopPost(path, body) {
+  if (!fb?.auth.currentUser) throw new Error('ต้องล็อกอินก่อน');
+  const res = await fetch(`${LINE_API.replace(/\/$/, '')}${path}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await fb.auth.currentUser.getIdToken()}` }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `ระบบ LINE ตอบกลับ ${res.status}`);
+  return data;
+}
+const b64ToBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+export async function pushEnable() {
+  if (!VAPID_KEY || !LINE_API) throw new Error('ยังไม่ได้ตั้งค่าการแจ้งเตือน');
+  if (await Notification.requestPermission() !== 'granted') throw new Error('ไม่ได้อนุญาตการแจ้งเตือน เปิดได้ที่ตั้งค่าของเบราว์เซอร์/ระบบ');
+  const reg = await navigator.serviceWorker.register('sw.js');
+  await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_KEY) });
+  const device = /Android/.test(navigator.userAgent) ? 'Android' : /iPad|iPhone/.test(navigator.userAgent) ? 'iPhone/iPad' : 'คอมพิวเตอร์';
+  await shopPost('/shop/push', { endpoint: sub.endpoint, device, test: true });
+}
+export async function pushDisable() {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  await shopPost('/shop/push/unsubscribe', { endpoint: sub.endpoint }).catch(() => {});
+  await sub.unsubscribe();
+}
+
 // ---- sign in with LINE (LIFF login → Worker checks the LINE account → Firebase custom token) ----
 export const lineLoginReady = () => !!(OWNER_LIFF_ID && LINE_API);
 let liffReady = null;

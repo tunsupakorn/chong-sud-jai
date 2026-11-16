@@ -1,6 +1,6 @@
 // JukJik service worker: network-first for the app's own files, cache as offline fallback,
 // plus the Android share target ("Share → จุกจิก") for slip images and PDFs.
-const CACHE = 'kaa-v10';
+const CACHE = 'kaa-v11';
 const SHARE = 'kaa-share';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'store.js', 'gemini.js', 'charts.js', 'sheets.js', 'qr.js', 'promptpay.js', 'guide.html',
   'firebase-config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
@@ -42,4 +42,32 @@ self.addEventListener('fetch', e => {
       return res;
     }).catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
   );
+});
+
+// ---- notifications: new LINE order / slip (Web Push without payload) ----
+// the push wakes this worker; the text is fetched from the shop's Worker by a hash of this device's subscription
+const LINE_API = 'https://jukjik-kaa-line.jukjik-kaa.workers.dev';
+async function subId(endpoint) {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint)));
+  return btoa(String.fromCharCode(...h)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '').slice(0, 32);
+}
+self.addEventListener('push', e => {
+  e.waitUntil((async () => {
+    let msg = { title: '💚 จุกจิก คาฟ่า', body: 'มีออเดอร์ LINE ใหม่ แตะเพื่อดู' };
+    try {
+      const sub = await self.registration.pushManager.getSubscription();
+      if (sub) { const r = await fetch(`${LINE_API}/push/peek/${await subId(sub.endpoint)}`, { cache: 'no-store' }); if (r.ok) msg = await r.json(); }
+    } catch {}
+    await self.registration.showNotification(msg.title, { body: msg.body, tag: msg.tag || 'kaa-order', renotify: true,
+      icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [200, 100, 200, 100, 200], requireInteraction: true });
+  })());
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const app = wins.find(w => new URL(w.url).pathname.startsWith(new URL(self.registration.scope).pathname) && !w.url.includes('/liff/'));
+    if (app) { await app.focus(); app.postMessage({ go: 'orders' }); return; }
+    await self.clients.openWindow(new URL('./?view=orders', self.registration.scope).href);
+  })());
 });
