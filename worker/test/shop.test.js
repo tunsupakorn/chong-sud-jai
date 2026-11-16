@@ -137,3 +137,20 @@ test('snacks count as pieces, have no drink options, can be ordered alone; sold-
   assert.equal(pm.find(x => x.id === 's_brownie').opts, false);
   assert.equal(pm.find(x => x.id === 's_brownie').price, 45);
 });
+
+test('per-item note (instead of the ice checkbox): kept per item, cleaned, shown in the label', () => {
+  const m2 = [...menu, { id: 's_brownie', name: 'บราวนี่', price: 45, group: 'snack' }];
+  const r = Shop.priceCart(m2, [
+    { id: 'm_thaitea', style: 'iced', qty: 1, sweet: 50, note: '  แยกน้ำแข็ง\n' },
+    { id: 'm_thaitea', style: 'iced', qty: 1, sweet: 50 },
+    { id: 's_brownie', qty: 1, note: 'อุ่นร้อน' },
+    { id: 't_pearl', qty: 1, note: 'ignored' },
+    { id: 'm_mango', qty: 1, note: 'x'.repeat(100) }]);
+  assert.equal(r.items.length, 5);
+  assert.equal(r.items[0].note, 'แยกน้ำแข็ง');
+  assert.equal(r.items[1].note, undefined);
+  assert.equal(Shop.itemLabel(r.items[0]), 'ชาไทย เย็น (หวาน 50% · แยกน้ำแข็ง)');
+  assert.equal(Shop.itemLabel(r.items[2]), 'บราวนี่ (อุ่นร้อน)');
+  assert.equal(r.items[3].note, undefined);
+  assert.equal(r.items[4].note.length, 60);
+});

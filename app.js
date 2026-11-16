@@ -227,7 +227,7 @@ function sweetReport(list) {
   const ice = items.filter(i => i.iceSep).reduce((s, i) => s + (Number(i.qty) || 0), 0);
   return `<section class="card"><h3>🍯 ความหวานยอดนิยม</h3>
     <ul class="sweet-bars">${by.map(r => `<li><span>${r.v}%</span><i style="width:${Math.round(r.q / n * 100)}%"></i><b class="num">${pct(r.q / n)}</b></li>`).join('')}</ul>
-    <p class="small muted">จาก ${nf.format(n)} แก้วที่เลือกความหวาน · 🧊 แยกน้ำแข็ง ${pct(ice / n)}</p></section>`;
+    <p class="small muted">จาก ${nf.format(n)} แก้วที่เลือกความหวาน${ice ? ` · 🧊 แยกน้ำแข็ง ${pct(ice / n)}` : ''}</p></section>`;
 }
 
 function posReport(list) {
@@ -1053,9 +1053,9 @@ const cartCount = () => [cartCups() ? `${cartCups()} แก้ว` : '', cartPie
 const todaySales = () => state.tx.filter(t => t.source === 'pos' && t.date === todayISO())
   .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-const posKey = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.ice ? 1 : 0}`;
-function cartAdd(id, n = 1, style = '', sweet, ice) {
-  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(ice ? { ice: true } : {}) };
+const posKey = l => `${l.id}|${l.style || ''}|${l.sweet ?? ''}|${l.note || ''}`;
+function cartAdd(id, n = 1, style = '', sweet, note = '') {
+  const add = { id, style, ...(sweet !== undefined ? { sweet } : {}), ...(note ? { note } : {}) };
   const l = ui.cart.find(x => posKey(x) === posKey(add));
   if (l) l.qty += n; else if (n > 0) ui.cart.push({ ...add, qty: n });
   if (n > 0) (l || ui.cart[ui.cart.length - 1]).t = Date.now();
@@ -1064,12 +1064,12 @@ function cartAdd(id, n = 1, style = '', sweet, ice) {
 // "−" on a tile: take back the most recent tap of that item (whatever style it was)
 function cartUndo(id) {
   const l = ui.cart.filter(x => x.id === id).sort((a, b) => (b.t || 0) - (a.t || 0))[0];
-  if (l) cartAdd(id, -1, l.style || '', l.sweet, l.ice);
+  if (l) cartAdd(id, -1, l.style || '', l.sweet, l.note);
 }
-// ask sweetness / ice when selling at the counter (setting; on by default)
+// ask sweetness and a note (e.g. แยกน้ำแข็ง) when selling at the counter (setting; on by default)
 const askOpts = m => isDrinkItem(m) && m.opts !== false && state.settings.posOpts !== false;
 function openPick(m) {
-  ui.pick = { id: m.id, style: stylesOf(m)[0] || '', sweet: 100, ice: false };
+  ui.pick = { id: m.id, style: stylesOf(m)[0] || '', sweet: 100, note: '' };
   renderPick();
   if (!$('#sheet').open) $('#sheet').showModal();
 }
@@ -1082,7 +1082,7 @@ function renderPick() {
     <div class="row between"><h2>${m.emoji} ${esc(m.name)}</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
     ${st.length > 1 ? `<div class="seg">${st.map(k => `<button aria-selected="${p.style === k}" data-action="pick-style" data-s="${k}">${STYLES[k].emoji} ${STYLES[k].word} <b class="num">${baht(m.prices[k])}</b></button>`).join('')}</div>` : ''}
     <div><small class="muted">ความหวาน</small><div class="seg">${[0, 25, 50, 100].map(v => `<button aria-selected="${p.sweet === v}" data-action="pick-sweet" data-v="${v}">${v}%</button>`).join('')}</div></div>
-    ${p.style !== 'hot' ? `<label class="check pick-ice"><input type="checkbox" data-input="pick-ice" ${p.ice ? 'checked' : ''}> 🧊 แยกน้ำแข็ง</label>` : ''}
+    <label class="lbl">📝 หมายเหตุแก้วนี้ (ถ้ามี)<input maxlength="60" placeholder="เช่น แยกน้ำแข็ง น้ำแข็งน้อย ไม่ใส่วิป" value="${esc(p.note)}" data-input="pick-note"></label>
     <button class="btn primary big" data-action="pick-add">＋ ใส่ตะกร้า · ${baht(priceOf(m, p.style))}</button>
   </div>`;
 }
@@ -1160,7 +1160,7 @@ function openCartSheet() {
   $('#sheet').innerHTML = `<div class="sheet-body">
     <div class="grab" aria-hidden="true"></div>
     <div class="row between"><h2>🧾 ตะกร้า</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
-    <ul class="cart-lines">${lines.map(l => `<li><span>${l.item.emoji} ${esc(l.name)} ${optTags({ ...l, iceSep: l.ice })}</span>
+    <ul class="cart-lines">${lines.map(l => `<li><span>${l.item.emoji} ${esc(l.name)} ${optTags(l)}</span>
       <span class="qty"><button class="icon-btn" data-action="cart-dec" data-k="${esc(posKey(l))}" aria-label="ลด">−</button><b>${l.qty}</b>
       <button class="icon-btn" data-action="cart-inc" data-k="${esc(posKey(l))}" aria-label="เพิ่ม">+</button></span>
       <b class="num">${baht(l.price * l.qty)}</b></li>`).join('') || '<li class="muted">ตะกร้าว่าง</li>'}</ul>
@@ -1207,10 +1207,10 @@ function confirmSale() {
   const tx = {
     id: 'pos-' + S.newId(), type: 'income', cat: 'sales', method: ui.pay.method, amount: total,
     date: todayISO(), time: nowHM(), source: 'pos', cups: cartCups(),
-    merchant: lines.map(l => { const o = [l.sweet !== undefined && l.sweet !== 100 ? `หวาน ${l.sweet}%` : '', l.ice ? 'แยกน้ำแข็ง' : ''].filter(Boolean).join(' · ');
+    merchant: lines.map(l => { const o = [l.sweet !== undefined && l.sweet !== 100 ? `หวาน ${l.sweet}%` : '', l.note || ''].filter(Boolean).join(' · ');
       return `${l.name}${o ? ` (${o})` : ''}${l.qty > 1 ? '×' + l.qty : ''}`; }).join(', '),
     items: lines.map(l => ({ id: l.id, name: l.name, qty: l.qty, price: l.price, cost: Number(l.item.cost) || 0, ...(l.style ? { style: l.style } : {}),
-      ...(l.sweet !== undefined ? { sweet: l.sweet } : {}), ...(l.ice ? { iceSep: true } : {}) })),
+      ...(l.sweet !== undefined ? { sweet: l.sweet } : {}), ...(l.note ? { note: l.note } : {}) })),
     ...(ui.pay.method === 'cash' ? { received: rec, change: rec - total } : {}),
   };
   S.saveTx(tx);
@@ -1377,7 +1377,7 @@ function menuCard() {
   const groups = Object.entries(S.MENU_GROUPS);
   return `<section class="card" id="menu"><h3>🧋 เมนูร้าน</h3>
     <p class="muted small">แตะเมนูเพื่อแก้ราคา (ปั่น / เย็น / ร้อน) ต้นทุน หรือพักขาย · ใช้ในหน้า 🛒 ขาย</p>
-    <label class="check"><input type="checkbox" data-input="posopts" ${state.settings.posOpts !== false ? 'checked' : ''}> ถามความหวาน/แยกน้ำแข็งตอนขายหน้าร้าน</label>
+    <label class="check"><input type="checkbox" data-input="posopts" ${state.settings.posOpts !== false ? 'checked' : ''}> ถามความหวานและหมายเหตุตอนขายหน้าร้าน</label>
     ${groups.map(([g, label]) => `<div class="row between"><small class="muted">${label}</small>
       <button class="link small" data-action="menu-new" data-g="${g}">+ เพิ่ม</button></div>
       <div class="chips">${menu().filter(m => m.group === g).map(m => `<button class="chip edit ${m.active === false ? 'off' : ''}" data-action="menu-edit" data-id="${m.id}">
@@ -1386,7 +1386,7 @@ function menuCard() {
 }
 // drink options (sweetness / ice on the side) as small tags, e.g. on order cards and bills
 const optTags = i => [i.sweet !== undefined && i.sweet !== 100 ? `<span class="opt-tag">🍯 หวาน ${i.sweet}%</span>` : '',
-  i.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : ''].join('');
+  i.iceSep ? '<span class="opt-tag">🧊 แยกน้ำแข็ง</span>' : '', i.note ? `<span class="opt-tag">📝 ${esc(i.note)}</span>` : ''].join('');
 // centre crop to w×h (menu 600×600, banner 1200×600), JPEG so LINE chat cards can show it too — ~40–80 KB
 async function photoData(file, w = 600, h = 600) {
   const bmp = await createImageBitmap(file);
@@ -1434,7 +1434,7 @@ function renderMenuEditor() {
       </div>
     </div>
     <label class="lbl">คำอธิบายสั้นๆ (ลูกค้าเห็น · ไม่บังคับ)<input value="${esc(d.desc || '')}" data-mn="desc" maxlength="120" placeholder="เช่น มะม่วงน้ำดอกไม้สุก หวานธรรมชาติ"></label>
-    ${!single(d.group) ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%) และแยกน้ำแข็ง</label>` : ''}
+    ${!single(d.group) ? `<label class="check"><input type="checkbox" data-mn="opts" ${d.opts !== false ? 'checked' : ''}> ให้ลูกค้าเลือกความหวาน (0–100%)</label>` : ''}
     <label class="check"><input type="checkbox" data-mn="soldOut" ${d.soldOut ? 'checked' : ''}> 🚫 หมดชั่วคราว (ลูกค้ายังเห็นเมนู แต่สั่งไม่ได้)</label>
     <label class="check"><input type="checkbox" data-mn="active" ${d.active !== false ? 'checked' : ''}> เปิดขาย (เอาเครื่องหมายออกเพื่อพักขายชั่วคราว)</label>
     <div class="emoji-grid">${EMOJIS.map(e => `<button type="button" class="${e === d.emoji ? 'on' : ''}" data-action="mn-emoji" data-e="${e}">${e}</button>`).join('')}</div>
@@ -1707,13 +1707,13 @@ document.addEventListener('click', async e => {
     case 'cart-open': return openCartSheet();
     case 'cart-inc': case 'cart-dec': {
       const l = ui.cart.find(x => posKey(x) === el.dataset.k); if (!l) return;
-      cartAdd(l.id, a === 'cart-inc' ? 1 : -1, l.style || '', l.sweet, l.ice); render();
+      cartAdd(l.id, a === 'cart-inc' ? 1 : -1, l.style || '', l.sweet, l.note); render();
       return ui.cart.length ? openCartSheet() : $('#sheet').close();
     }
-    case 'pick-style': ui.pick.style = el.dataset.s; if (ui.pick.style === 'hot') ui.pick.ice = false; return renderPick();
+    case 'pick-style': ui.pick.style = el.dataset.s; return renderPick();
     case 'pick-sweet': ui.pick.sweet = Number(el.dataset.v); return renderPick();
     case 'pick-add': {
-      const p = ui.pick; cartAdd(p.id, 1, p.style, p.sweet, p.ice && p.style !== 'hot');
+      const p = ui.pick; cartAdd(p.id, 1, p.style, p.sweet, String(p.note || '').trim().slice(0, 60));
       if (navigator.vibrate) navigator.vibrate(10); $('#sheet').close(); return render();
     }
     case 'cart-clear': ui.cart = []; $('#sheet').close(); return render();
@@ -2024,6 +2024,7 @@ document.addEventListener('input', e => {
   if (t.dataset.d) { draft[t.dataset.d] = t.value; return; }
   if (t.dataset.ce) { catDraft[t.dataset.ce] = t.value; return; }
   if (t.dataset.mn) { menuDraft[t.dataset.mn] = t.type === 'checkbox' ? t.checked : t.value; return; }
+  if (t.dataset.input === 'pick-note' && ui.pick) { ui.pick.note = t.value; return; }
   if (t.dataset.sp) { menuDraft.sp[t.dataset.sp] = t.value; return; }
   if (t.dataset.pay) {
     ui.pay.received = t.value;
@@ -2094,7 +2095,6 @@ document.addEventListener('change', async e => {
       try { await S.setOpenSignup(t.checked); toast(t.checked ? 'เปิดให้ทุกคนใช้ได้แล้ว' : 'จำกัดเฉพาะอีเมลที่อนุญาตแล้ว'); } catch (err) { toast('❌ ' + err.message); }
       return;
     case 'posopts': S.saveSettings({ posOpts: t.checked }); return toast(t.checked ? 'หน้าขายจะถามความหวานทุกแก้ว' : 'หน้าขายแตะครั้งเดียวใส่ตะกร้า (ไม่ถามความหวาน)');
-    case 'pick-ice': if (ui.pick) ui.pick.ice = t.checked; return;
     case 'banner-on': saveLine({ banner: { ...(lineCfg().banner || {}), on: t.checked } }); return toast(t.checked ? 'แสดงแบนเนอร์แล้ว' : 'ซ่อนแบนเนอร์แล้ว');
     case 'bannerphoto': {
       const file = t.files[0]; t.value = '';
