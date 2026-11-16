@@ -34,7 +34,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   const ordersOn = day => db.where(shop, 'orders', [['day', day]]);
 
   // ---------- messages ----------
-  const itemsText = o => o.items.map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
+  const itemsText = o => o.items.map(i => `${Shop.itemLabel(i)}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
   const pickupText = o => `${o.pickup?.mode === 'later' ? `นัด ${o.pickup.at} น.` : `ประมาณ ${o.pickup?.at || ''} น.`} · ${Shop.fulfilText(o.fulfil || { mode: 'pickup' })}`;
   const payText = o => o.paid ? 'ชำระแล้ว ✅' : o.payMethod === 'promptpay' ? (o.payClaimed ? 'แจ้งโอนแล้ว รอร้านตรวจ' : 'พร้อมเพย์ (ยังไม่ได้โอน)') : 'จ่ายเงินสดตอนรับ';
   function orderBubble(id, o, title) {
@@ -65,7 +65,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     }));
   }
   const later = (ctx, p) => { const w = p.catch(e => console.error('notify', e)); if (ctx?.waitUntil) ctx.waitUntil(w); return w; };
-  const orderLine = o => `${o.no} · ${o.items.map(i => `${i.name}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')} · ${baht(o.total)}`;
+  const orderLine = o => `${o.no} · ${o.items.map(i => `${Shop.itemLabel(i)}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')} · ${baht(o.total)}`;
 
   // ---------- customer API ----------
   async function menu() {
@@ -229,6 +229,20 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       if (req.method === 'GET' && parts[0] === 'push' && parts[1] === 'peek' && /^[\w-]{20,40}$/.test(parts[2] || '')) {
         const d = await db.get(`${shop}/pushSubs/${parts[2]}`);
         return send(d?.data?.last ? { title: d.data.last.title, body: d.data.last.body, tag: d.data.last.tag } : { title: '💚 จุกจิก คาฟ่า', body: 'มีความเคลื่อนไหวของออเดอร์ LINE' });
+      }
+      // menu photo (stored small in Firestore menuPhotos/{id}); ?v= changes with each new photo, so it can be cached for good
+      if (req.method === 'GET' && parts[0] === 'photo' && /^[\w-]{1,60}$/.test(parts[1] || '')) {
+        const cache = typeof caches !== 'undefined' ? caches.default : null;
+        const hit = cache && await cache.match(req);
+        if (hit) return hit;
+        const d = await db.get(`${shop}/menuPhotos/${parts[1]}`);
+        const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(d?.data?.data || '');
+        if (!m) return new Response('ไม่มีรูป', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
+        const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+        const res = new Response(bytes, { headers: { 'Content-Type': m[1], 'Access-Control-Allow-Origin': '*',
+          'Cache-Control': url.searchParams.get('v') ? 'public, max-age=31536000, immutable' : 'public, max-age=300' } });
+        if (cache) later(ctx, cache.put(req, res.clone()));
+        return res;
       }
       // PromptPay QR of an unpaid order as a real image file: the LINE in-app browser hands this link to Chrome/Safari to save
       if (req.method === 'GET' && parts[0] === 'qr' && /^[A-Za-z0-9]{1,40}\.png$/.test(parts[1] || '')) {

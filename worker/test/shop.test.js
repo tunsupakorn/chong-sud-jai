@@ -100,3 +100,24 @@ test('delivery needs the minimum order (default ฿100)', () => {
   assert.equal(Shop.checkFulfil(cfg, { mode: 'pickup' }, 35).mode, 'pickup');
   assert.equal(Shop.checkFulfil({ ...cfg, deliveryMin: 0 }, f, 35).mode, 'delivery');
 });
+
+test('drink options: sweetness and ice on the side', () => {
+  const r = Shop.priceCart(menu, [
+    { id: 'm_thaitea', style: 'iced', qty: 1, sweet: 50, ice: true },
+    { id: 'm_thaitea', style: 'iced', qty: 1 },
+    { id: 'm_thaitea', style: 'iced', qty: 2, sweet: 50, ice: true },
+    { id: 'm_thaitea', style: 'hot', qty: 1, sweet: 0, ice: true },
+    { id: 't_pearl', qty: 1, sweet: 25 }]);
+  assert.equal(r.items.length, 4);
+  assert.deepEqual(r.items[0], { id: 'm_thaitea', name: 'ชาไทย เย็น', qty: 3, price: 30, cost: 12, style: 'iced', sweet: 50, iceSep: true });
+  assert.equal(r.items[1].sweet, 100);
+  assert.equal(r.items[2].iceSep, undefined); // hot: no ice to keep apart
+  assert.equal(r.items[3].sweet, undefined);  // toppings have no options
+  assert.equal(Shop.itemLabel(r.items[0]), 'ชาไทย เย็น (หวาน 50% · แยกน้ำแข็ง)');
+  assert.equal(Shop.itemLabel(r.items[1]), 'ชาไทย เย็น');
+  assert.throws(() => Shop.priceCart(menu, [{ id: 'm_mango', qty: 1, sweet: 30 }]), /ความหวาน/);
+  const noOpts = menu.map(m => m.id === 'm_mango' ? { ...m, opts: false } : m);
+  assert.equal(Shop.priceCart(noOpts, [{ id: 'm_mango', qty: 1, sweet: 0, ice: true }]).items[0].sweet, undefined);
+  const pm = Shop.publicMenu([{ ...menu[0], photo: 1700, desc: 'ชาแท้' }, menu[2]]);
+  assert.deepEqual([pm[0].photo, pm[0].desc, pm[0].opts, pm[1].opts], [1700, 'ชาแท้', true, false]);
+});

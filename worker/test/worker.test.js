@@ -316,3 +316,13 @@ test('shop push: subscribe (owner only), notified on new order and slip, peek sh
   assert.deepEqual(pushed.map(x => x.url), ['https://push.test/tablet']);
   assert.match((await call('GET', `/push/peek/${sub.data.id}`)).data.title, /แนบสลิป/);
 });
+
+test('menu photo is served from Firestore as an image', async () => {
+  docs[`${SHOP}/menuPhotos/m_thaitea`] = { data: { data: 'data:image/webp;base64,' + Buffer.from('RIFFxxxxWEBP').toString('base64'), v: 5 }, updateTime: '1' };
+  const res = await app(new Request('https://w.test/photo/m_thaitea?v=5'));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/webp');
+  assert.match(res.headers.get('cache-control'), /immutable/);
+  assert.equal(Buffer.from(await res.arrayBuffer()).toString(), 'RIFFxxxxWEBP');
+  assert.equal((await app(new Request('https://w.test/photo/m_mango'))).status, 404);
+});
