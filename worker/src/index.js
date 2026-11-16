@@ -9,6 +9,7 @@ import { Firestore, withRetry } from './firestore.js';
 import { googleToken, verifyFirebaseToken, firebaseCustomToken } from './auth.js';
 import { validSignature, lineApi, verifyLiffToken } from './line.js';
 import { payload as ppPayload, qrPng } from './qrpng.js';
+import { subId, sendPush } from './push.js';
 
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
 const baht = n => '฿' + Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
@@ -52,6 +53,20 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
   const orderButton = (text, label = '🥤 สั่งเครื่องดื่ม') => ({ type: 'template', altText: text,
     template: { type: 'buttons', text: text.slice(0, 160), actions: [{ type: 'uri', label, uri: liffUrl() }] } });
 
+  // ---------- shop notifications (Web Push to the shop's devices) ----------
+  async function notifyShop(title, body, tag) {
+    if (!env.VAPID_PRIVATE_JWK) return;
+    const subs = await db.where(shop, 'pushSubs', [['active', true]]);
+    await Promise.all(subs.map(async d => {
+      // the text waits on the subscription doc; the device's service worker picks it up with /push/peek/{id}
+      await db.commit([db.patch(`${shop}/pushSubs/${d.id}`, { last: { title, body, tag, at: Date.now() } })]).catch(() => {});
+      const r = await sendPush(d.data.endpoint, env, fetchFn);
+      if (r === 'gone') await db.commit([db.patch(`${shop}/pushSubs/${d.id}`, { active: false })]).catch(() => {});
+    }));
+  }
+  const later = (ctx, p) => { const w = p.catch(e => console.error('notify', e)); if (ctx?.waitUntil) ctx.waitUntil(w); return w; };
+  const orderLine = o => `${o.no} · ${o.items.map(i => `${i.name}${i.qty > 1 ? '×' + i.qty : ''}`).join(', ')} · ${baht(o.total)}`;
+
   // ---------- customer API ----------
   async function menu() {
     const { settings, cfg, menu, name } = await loadShop();
@@ -60,7 +75,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       now: now.hm, day: now.day, acceptingNow: cfg.open && now.min >= Shop.toMin(cfg.from) && now.min < Shop.toMin(cfg.to) }, menu: Shop.publicMenu(menu) };
   }
 
-  async function placeOrder(who, body) {
+  async function placeOrder(who, body, ctx) {
     const { settings, cfg, menu } = await loadShop();
     const now = Shop.bkk();
     const pickup = Shop.checkPickup(cfg, body?.pickup, now);
@@ -79,6 +94,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const o = { no: Shop.orderNo(n), day: now.day, status: 'new', lineUserId: who.id, displayName: who.name, ...priced, payMethod,
       paid: false, payClaimed: false, pickup, fulfil, note: String(body?.note || '').slice(0, 120), createdAt: Date.now(), updatedAt: Date.now() };
     await db.commit([db.create(`${shop}/orders/${id}`, o)]);
+    later(ctx, notifyShop('💚 ออเดอร์ใหม่', `${orderLine(o)}\n${Shop.fulfilText(o.fulfil)} · ${o.pickup.mode === 'later' ? 'นัด ' : '~'}${o.pickup.at} น. · ${o.payMethod === 'promptpay' ? 'พร้อมเพย์' : 'เงินสด'}`, `order-${id}`));
     return Shop.publicOrder(id, o, settings);
   }
 
@@ -209,6 +225,11 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const send = (d, s) => json(d, s, cors);
     try {
       if (req.method === 'GET' && parts[0] === 'menu') return send(await menu());
+      // service worker of a subscribed device: what to show for the push it just got (id = hash of its own endpoint)
+      if (req.method === 'GET' && parts[0] === 'push' && parts[1] === 'peek' && /^[\w-]{20,40}$/.test(parts[2] || '')) {
+        const d = await db.get(`${shop}/pushSubs/${parts[2]}`);
+        return send(d?.data?.last ? { title: d.data.last.title, body: d.data.last.body, tag: d.data.last.tag } : { title: '💚 จุกจิก คาฟ่า', body: 'มีความเคลื่อนไหวของออเดอร์ LINE' });
+      }
       // PromptPay QR of an unpaid order as a real image file: the LINE in-app browser hands this link to Chrome/Safari to save
       if (req.method === 'GET' && parts[0] === 'qr' && /^[A-Za-z0-9]{1,40}\.png$/.test(parts[1] || '')) {
         const id = parts[1].slice(0, -4);
@@ -234,6 +255,17 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
         const owner = claims && (claims.lineOwner === true
           || (claims.email_verified && String(claims.email || '').toLowerCase() === String(env.OWNER_EMAIL || '').toLowerCase()));
         if (!owner) return send({ error: 'เฉพาะบัญชีเจ้าของร้าน' }, 403);
+        if (req.method === 'POST' && parts[1] === 'push') {
+          const body = await req.json().catch(() => ({}));
+          const ep = String(body.endpoint || '');
+          if (!/^https:\/\/[\w.-]+\//.test(ep) || ep.length > 1000) return send({ error: 'subscription ไม่ถูกต้อง' }, 400);
+          const id = await subId(ep);
+          if (parts[2] === 'unsubscribe') { await db.commit([db.patch(`${shop}/pushSubs/${id}`, { active: false })]).catch(() => {}); return send({ ok: true }); }
+          await db.commit([db.set(`${shop}/pushSubs/${id}`, { endpoint: ep, active: true, device: String(body.device || '').slice(0, 80), by: claims.sub, at: Date.now(),
+            last: { title: '🔔 เปิดแจ้งเตือนแล้ว', body: 'เครื่องนี้จะได้รับแจ้งเตือนเมื่อมีออเดอร์ LINE ใหม่', tag: 'test', at: Date.now() } })]);
+          if (body.test && env.VAPID_PRIVATE_JWK) later(ctx, sendPush(ep, env, fetchFn)); // a test notification on this device only
+          return send({ ok: true, id });
+        }
         if (req.method === 'POST' && parts[1] === 'orders' && parts[2]) {
           const body = await req.json().catch(() => ({}));
           return send(await shopChange(parts[2], body.action, body.reason));
@@ -244,7 +276,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       const who = token ? await verifyLiffToken(env, token, fetchFn) : null;
       if (!who) return send({ error: 'การยืนยันตัวตนหมดอายุ ปิดแล้วเปิดหน้านี้ใหม่' }, 401);
       if (parts[0] === 'orders') {
-        if (parts.length === 1 && req.method === 'POST') return send(await placeOrder(who, await req.json().catch(() => ({}))), 201);
+        if (parts.length === 1 && req.method === 'POST') return send(await placeOrder(who, await req.json().catch(() => ({})), ctx), 201);
         if (parts.length === 1 && req.method === 'GET') {
           const [rows, { settings }] = await Promise.all([ordersOn(Shop.bkk().day), loadShop()]);
           return send(rows.filter(d => d.data.lineUserId === who.id).map(d => Shop.publicOrder(d.id, d.data, settings)).sort((a, b) => b.createdAt - a.createdAt));
@@ -255,8 +287,13 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
           return send(Shop.publicOrder(id, doc.data, settings));
         }
         const step = { claim, cash: toCash, cancel }[parts[2]];
-        if (req.method === 'POST' && step) { await customerChange(who, id, step); return send({ ok: true }); }
-        if (req.method === 'POST' && parts[2] === 'slip') { await attachSlip(who, id, await req.json().catch(() => ({}))); return send({ ok: true }); }
+        const pay = async (text) => { const d = await db.get(`${shop}/orders/${id}`); if (d) later(ctx, notifyShop(text, orderLine(d.data), `pay-${id}`)); };
+        if (req.method === 'POST' && step) {
+          await customerChange(who, id, step);
+          if (parts[2] === 'claim') await pay('📲 ลูกค้าแจ้งโอนแล้ว · เช็กยอดเข้า');
+          return send({ ok: true });
+        }
+        if (req.method === 'POST' && parts[2] === 'slip') { await attachSlip(who, id, await req.json().catch(() => ({}))); await pay('🧾 ลูกค้าแนบสลิปแล้ว · เช็กยอดเข้า'); return send({ ok: true }); }
       }
       if (parts[0] === 'me') {
         const [c, { cfg }] = await Promise.all([db.get(`${shop}/customers/${who.id}`), loadShop()]);

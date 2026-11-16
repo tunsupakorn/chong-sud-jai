@@ -841,10 +841,28 @@ const pickupMin = o => { const [h, m] = String(o.pickup?.at || '23:59').split(':
 const openOrders = () => [...state.orders].sort((a, b) => pickupMin(a) - pickupMin(b) || (a.createdAt || 0) - (b.createdAt || 0));
 const newOrderCount = () => state.orders.filter(o => o.status === 'new').length;
 
+// notifications on this device
+function pushRow() {
+  if (ui.pushState === undefined) { ui.pushState = 'checking'; S.pushState().then(s => { ui.pushState = s; render(); }).catch(() => { ui.pushState = 'unsupported'; render(); }); }
+  const s = ui.pushState;
+  const txt = {
+    checking: '',
+    on: '🔔 <b>เครื่องนี้เปิดแจ้งเตือนแล้ว</b> · เด้งเตือนเมื่อมีออเดอร์ใหม่หรือลูกค้าแนบสลิป',
+    off: '🔕 เครื่องนี้ยังไม่ได้เปิดแจ้งเตือนออเดอร์',
+    denied: '🔕 เครื่องนี้ปิดการแจ้งเตือนของแอปไว้ เปิดได้ที่ ตั้งค่าเครื่อง › แอป/การแจ้งเตือน › จุกจิกการค้า (หรือตั้งค่าเว็บไซต์ในเบราว์เซอร์)',
+    'ios-install': '📱 iPhone/iPad: เพิ่มแอปไปที่หน้าจอโฮมก่อน (ปุ่มแชร์ › เพิ่มไปยังหน้าจอโฮม) แล้วเปิดจากไอคอน จึงจะเปิดแจ้งเตือนได้',
+    unsupported: '🔕 เบราว์เซอร์นี้รับแจ้งเตือนไม่ได้ ลองเปิดแอปด้วย Chrome หรือติดตั้งแอปลงหน้าจอโฮม',
+  }[s] || '';
+  return `<div class="push-row ${s}"><p class="small" style="margin:0">${txt}</p>
+    ${s === 'off' ? `<button class="btn primary sm" data-action="push-on" ${ui.pushBusy ? 'disabled' : ''}>${ui.pushBusy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือนบนเครื่องนี้'}</button>` : ''}
+    ${s === 'on' ? `<button class="btn ghost sm" data-action="push-test">ส่งทดสอบ</button><button class="btn ghost sm" data-action="push-off">ปิด</button>` : ''}</div>`;
+}
+
 function lineCard() {
   const c = lineCfg();
   return `<section class="card" id="line"><h3>💚 สั่งผ่าน LINE OA</h3>
     <p class="muted small">ลูกค้าสั่งและจ่ายผ่าน LINE ออเดอร์เข้ามาที่ 🛒 ขาย › ออเดอร์ LINE · ตั้งค่าบัญชี LINE ตามคู่มือใน README</p>
+    ${pushRow()}
     <div class="seg"><button aria-selected="${c.open}" data-action="line-open" data-v="1">🟢 เปิดรับออเดอร์</button>
       <button aria-selected="${!c.open}" data-action="line-open" data-v="">⏸️ ปิดรับ</button></div>
     <p class="small muted" style="margin:12px 0 4px">วิธีรับที่ให้ลูกค้าเลือก</p>
@@ -900,6 +918,7 @@ function viewOrders() {
     <div class="row between gap" style="margin-bottom:6px"><span class="small">${c.open ? '🟢 เปิดรับออเดอร์อยู่' : '⏸️ ปิดรับออเดอร์อยู่'} · ${esc(c.from)}–${esc(c.to)}</span>
       <button class="btn ghost sm" data-action="line-open" data-v="${c.open ? '' : '1'}">${c.open ? 'ปิดรับ' : 'เปิดรับ'}</button></div>
     ${state.mode !== 'cloud' ? '<p class="g-note">ต้องล็อกอินบัญชีร้านก่อน ถึงจะเห็นออเดอร์จาก LINE</p>' : ''}
+    ${ui.pushState === 'off' ? '<button class="line-banner" data-action="push-on"><span>🔔 เปิดแจ้งเตือนออเดอร์ใหม่บนเครื่องนี้</span><span>›</span></button>' : ''}
     ${list.length ? list.map(orderCard).join('') : '<p class="muted center pad">ยังไม่มีออเดอร์ที่ค้างอยู่ 💤</p>'}`;
 }
 
@@ -1597,6 +1616,11 @@ document.addEventListener('click', async e => {
       return toast('บันทึกการตั้งค่า LINE แล้ว');
     }
     case 'ord-status': return orderAction(el.dataset.id, el.dataset.s, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
+    case 'push-on': case 'push-test':
+      ui.pushBusy = true; render();
+      try { await S.pushEnable(); toast('เปิดแจ้งเตือนแล้ว · กำลังส่งแจ้งเตือนทดสอบ 🔔'); } catch (e) { toast(e.message); }
+      ui.pushBusy = false; ui.pushState = await S.pushState().catch(() => 'unsupported'); return render();
+    case 'push-off': await S.pushDisable().catch(() => {}); ui.pushState = 'off'; toast('ปิดแจ้งเตือนบนเครื่องนี้แล้ว'); return render();
     case 'line-mode': {
       const m = el.dataset.m, cur = lineModes();
       const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
@@ -2013,6 +2037,9 @@ S.subscribe(() => {
 });
 render();
 S.initStore().then(() => { if (S.lineLoginPending()) lineLogin(); });
+// tapped a "new order" notification: open the LINE orders page
+if (new URLSearchParams(location.search).get('view') === 'orders') { ui.view = 'orders'; history.replaceState(null, '', location.pathname); render(); }
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.go === 'orders') { if ($('#sheet').open) $('#sheet').close(); go('orders'); } });
 takeSharedFiles();
 takeConnectLink();
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('sw.js').catch(() => {});

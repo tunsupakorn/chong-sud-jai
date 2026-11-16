@@ -496,3 +496,6 @@ details.more-settings section + section { margin-top: 14px; }
 .btn.line-btn { background: #06C755; color: #fff; box-shadow: 0 4px 14px rgba(6, 199, 85, .3); }
 .order-fulfil { font-size: .92rem; }
 .order-fulfil a { color: var(--accent); }
+.push-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; }
+.push-row p { flex: 1 1 220px; }
+.push-row.on { background: color-mix(in srgb, #06C755 12%, var(--surface)); }
