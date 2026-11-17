@@ -263,7 +263,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       // service worker of a subscribed device: what to show for the push it just got (id = hash of its own endpoint)
       if (req.method === 'GET' && parts[0] === 'push' && parts[1] === 'peek' && /^[\w-]{20,40}$/.test(parts[2] || '')) {
         const d = await db.get(`${shop}/pushSubs/${parts[2]}`);
-        return send(d?.data?.last ? { title: d.data.last.title, body: d.data.last.body, tag: d.data.last.tag } : { title: '💚 จุกจิก คาฟ่า', body: 'มีความเคลื่อนไหวของออเดอร์ LINE' });
+        return send(d?.data?.last ? { title: d.data.last.title, body: d.data.last.body, tag: d.data.last.tag } : { title: '💚 ชงสุดใจ', body: 'มีความเคลื่อนไหวของออเดอร์ LINE' });
       }
       // menu photo (stored small in Firestore menuPhotos/{id}); ?v= changes with each new photo, so it can be cached for good
       if (req.method === 'GET' && parts[0] === 'photo' && /^[\w-]{1,60}$/.test(parts[1] || '')) {

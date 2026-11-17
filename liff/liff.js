@@ -308,7 +308,7 @@ async function qrPicture() {
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#2F7FD6'; g.fillRect(0, 0, W, 120);
   g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.font = '600 44px Mitr, sans-serif';
-  g.fillText(ui.shop?.name || 'จุกจิก คาฟ่า', W / 2, 78);
+  g.fillText(ui.shop?.name || 'ชงสุดใจ', W / 2, 78);
   g.imageSmoothingEnabled = false; // keep the QR modules sharp
   g.drawImage(await loadImg(ui.qrUrl), 110, 170, 500, 500);
   g.fillStyle = '#1F2A44'; g.font = '600 64px Mitr, sans-serif'; g.fillText(baht(o.total), W / 2, 770);

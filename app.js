@@ -635,7 +635,7 @@ function sheetCard() {
       <ol class="steps">
         <li class="small"><b>ทำบนคอมพิวเตอร์ ครั้งเดียว ~5 นาที</b> ใช้บัญชี Google ที่จะเก็บชีตและสลิป</li>
         <li><a class="btn primary sm" href="https://sheets.new" target="_blank" rel="noopener">① 📗 สร้างชีตใหม่ ↗</a>
-          <span class="small">ตั้งชื่อ เช่น “จุกจิก คาฟ่า – บัญชี”</span></li>
+          <span class="small">ตั้งชื่อ เช่น “ชงสุดใจ – บัญชีร้าน”</span></li>
         <li><span class="small">② ในชีต: เมนู <b>ส่วนขยาย › Apps Script</b> › ลบโค้ดเดิมทั้งหมด › วางโค้ดจากปุ่มนี้ › กด 💾 บันทึก</span>
           <button class="btn ghost sm" data-action="sheet-copy-code">📋 คัดลอกโค้ดสคริปต์</button></li>
         <li><span class="small">③ ปุ่ม <b>การทำให้ใช้งานได้ › การทำให้ใช้งานได้รายการใหม่</b> › ⚙️ เลือก <b>เว็บแอป</b> ›
@@ -913,7 +913,7 @@ function lineCard() {
       <label>สะสมครบ (แก้ว)<input type="number" inputmode="numeric" min="1" max="99" value="${esc(c.stampGoal)}" data-line="stampGoal"></label>
       ${lineModes().includes('delivery') ? `<label>จัดส่งขั้นต่ำ (บาท)<input type="number" inputmode="numeric" min="0" max="5000" step="10" value="${esc(c.deliveryMin)}" data-line="deliveryMin"></label>` : ''}
     </div>
-    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="จุกจิก คาฟ่า" value="${esc(c.name || '')}" data-line="name"></label>
+    <label class="line-note">ชื่อร้านที่ลูกค้าเห็น<input maxlength="40" placeholder="ชงสุดใจ" value="${esc(c.name || '')}" data-line="name"></label>
     <div class="banner-edit"><label class="check"><input type="checkbox" data-input="banner-on" ${c.banner?.on ? 'checked' : ''}> 📣 แบนเนอร์โปรโมชันบนหน้าสั่ง</label>
       ${c.banner?.photo ? `<img src="${S.photoUrl('_banner', c.banner.photo)}" alt="แบนเนอร์">` : ''}
       <div class="row gap wrap"><label class="btn ghost sm">🖼️ ${c.banner?.photo ? 'เปลี่ยนรูป' : 'ใส่รูปแนวนอน'}<input type="file" accept="image/*" data-input="bannerphoto" hidden></label>
