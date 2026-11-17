@@ -65,7 +65,7 @@ const SYNC = {
 function header(title, back) {
   const [label, cls] = SYNC[state.syncStatus] || SYNC.local;
   return `<header class="top">
-    <div class="brand">${back ? `<button class="icon-btn back-btn" data-action="back" data-to="${back}" aria-label="ย้อนกลับ">‹</button>` : ''}<img src="icons/icon.svg" alt="" width="40" height="40"><div><h1>${title || 'จุกจิกการค้า'}</h1><small>บัญชีร้าน</small></div></div>
+    <div class="brand">${back ? `<button class="icon-btn back-btn" data-action="back" data-to="${back}" aria-label="ย้อนกลับ">‹</button>` : ''}<img src="icons/icon.svg" alt="" width="40" height="40"><div><h1>${title || 'ชงสุดใจ'}</h1><small>บัญชีร้าน</small></div></div>
     <button class="sync ${cls}" data-nav="settings" title="สถานะการซิงก์"><i></i>${label}</button>
   </header>`;
 }
@@ -108,7 +108,7 @@ const CHANNELS = [['cash', '💵 เงินสด'], ['promptpay', '📲 พ�
 
 function viewOnboarding() {
   const steps = [
-    { e: '🥤', h: 'สวัสดี! นี่คือ จุกจิกการค้า', p: 'ผู้ช่วยทำบัญชีร้านน้ำปั่น แยกจากเงินส่วนตัว รู้กำไรจริงทุกวัน' },
+    { e: '🥤', h: 'สวัสดี! นี่คือ ชงสุดใจ', p: 'ผู้ช่วยทำบัญชีร้านน้ำปั่น แยกจากเงินส่วนตัว รู้กำไรจริงทุกวัน' },
     { e: '📒', h: 'ปิดยอดวันละครั้ง', p: 'จบวันกรอกยอดขาย เงินสด · พร้อมเพย์ · สแกนจ่าย แค่ 3 ช่อง ไม่ต้องจดทีละแก้ว' },
     { e: '🧾', h: 'ส่งสลิป ใบเสร็จ มาให้อ่าน', p: 'ซื้อวัตถุดิบ ค่าเช่า ค่าไฟ อ่านสลิปและใบเสร็จได้ทุกธนาคาร จัดหมวดต้นทุน/ค่าใช้จ่าย/ลงทุนให้เอง' },
     { e: '📊', h: 'รู้กำไรและคืนทุน', p: 'กำไรขั้นต้น กำไรสุทธิ ต้นทุนต่อแก้ว วันขายดี และอีกกี่เดือนคืนทุน' },
@@ -504,10 +504,10 @@ function viewSettings() {
       <p class="muted small">พบปัญหา อยากเพิ่มฟีเจอร์ หรือสอบถามการใช้งาน ติดต่อได้ที่</p>
       <div class="row gap wrap">
         <a class="btn line-btn sm" href="https://line.me/ti/p/~t36abz" target="_blank" rel="noopener">💬 LINE ID: t36abz</a>
-        <a class="btn ghost sm" href="mailto:supakorn.nty@gmail.com?subject=${encodeURIComponent('จุกจิกการค้า')}">✉️ supakorn.nty@gmail.com</a>
+        <a class="btn ghost sm" href="mailto:supakorn.nty@gmail.com?subject=${encodeURIComponent('ชงสุดใจ')}">✉️ supakorn.nty@gmail.com</a>
       </div>
     </section>
-    <p class="center muted small pad">จุกจิกการค้า v${esc(window.APP_VERSION || '')}${window.APP_UPDATED ? ` · อัปเดต ${new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseISO(window.APP_UPDATED))}` : ''}</p>`;
+    <p class="center muted small pad">ชงสุดใจ v${esc(window.APP_VERSION || '')}${window.APP_UPDATED ? ` · อัปเดต ${new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseISO(window.APP_UPDATED))}` : ''}</p>`;
 }
 
 // ---------- access gate (email not verified / not on the allow list) ----------
@@ -524,7 +524,7 @@ function viewGate() {
   if (S.privateApp && state.mode !== 'cloud') {
     return `<section class="onboard gate">
       <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">🔐</span></div>
-      <h2>เข้าสู่ระบบจุกจิก</h2>
+      <h2>เข้าสู่ระบบชงสุดใจ</h2>
       <p>แอปของร้าน · ล็อกอินด้วย LINE ของเจ้าของร้าน ข้อมูลซิงก์ทุกเครื่อง</p>
       ${S.lineLoginReady()
         ? `<button class="btn big line-btn" data-action="line-login" ${ui.authBusy ? 'disabled' : ''}>${ui.authBusy ? 'กำลังเข้าสู่ระบบ…' : '💬 เข้าสู่ระบบด้วย LINE'}</button>`
@@ -556,7 +556,7 @@ function viewGate() {
 const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
 const TEMPLATE_URL = ''; // ชีตต้นแบบของร้าน: เพิ่มในเฟสถัดไป
 function inviteText(name) {
-  return `${name ? `สวัสดี ${name} ` : ''}ชวนมาใช้ "จุกจิก" แอปจดรายรับรายจ่าย อ่านสลิปให้อัตโนมัติ 🐣
+  return `${name ? `สวัสดี ${name} ` : ''}ชวนมาใช้ "ชงสุดใจ" แอปจดรายรับรายจ่าย อ่านสลิปให้อัตโนมัติ 🐣
 1) เปิด ${APP_URL} แล้วติดตั้งลงหน้าจอ (วิธีติดตั้ง: ${APP_URL}guide.html#sec-install)
 2) ตั้งค่า › สมัคร/เข้าสู่ระบบด้วย Google หรืออีเมลที่ให้ไว้
 3) (ไม่บังคับ) อยากได้ Google Sheet ของตัวเอง: ${TEMPLATE_URL.includes('TEMPLATE_ID') ? APP_URL + 'guide.html#sheet-template' : TEMPLATE_URL}`;
@@ -887,7 +887,7 @@ function pushRow() {
     checking: '',
     on: '🔔 <b>เครื่องนี้เปิดแจ้งเตือนแล้ว</b> · เด้งเตือนเมื่อมีออเดอร์ใหม่หรือลูกค้าแนบสลิป',
     off: '🔕 เครื่องนี้ยังไม่ได้เปิดแจ้งเตือนออเดอร์',
-    denied: '🔕 เครื่องนี้ปิดการแจ้งเตือนของแอปไว้ เปิดได้ที่ ตั้งค่าเครื่อง › แอป/การแจ้งเตือน › จุกจิกการค้า (หรือตั้งค่าเว็บไซต์ในเบราว์เซอร์)',
+    denied: '🔕 เครื่องนี้ปิดการแจ้งเตือนของแอปไว้ เปิดได้ที่ ตั้งค่าเครื่อง › แอป/การแจ้งเตือน › ชงสุดใจ (หรือตั้งค่าเว็บไซต์ในเบราว์เซอร์)',
     'ios-install': '📱 iPhone/iPad: เพิ่มแอปไปที่หน้าจอโฮมก่อน (ปุ่มแชร์ › เพิ่มไปยังหน้าจอโฮม) แล้วเปิดจากไอคอน จึงจะเปิดแจ้งเตือนได้',
     unsupported: '🔕 เบราว์เซอร์นี้รับแจ้งเตือนไม่ได้ ลองเปิดแอปด้วย Chrome หรือติดตั้งแอปลงหน้าจอโฮม',
   }[s] || '';

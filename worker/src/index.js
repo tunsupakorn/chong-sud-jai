@@ -28,7 +28,7 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
     const doc = await db.get(shop);
     const settings = doc?.data?.settings || {};
     const cfg = Shop.lineSettings(settings);
-    return { settings, cfg, menu: Array.isArray(settings.menu) ? settings.menu : [], name: cfg.name || env.SHOP_NAME || 'จุกจิกการค้า' };
+    return { settings, cfg, menu: Array.isArray(settings.menu) ? settings.menu : [], name: cfg.name || env.SHOP_NAME || 'ชงสุดใจ' };
   }
   // today's orders (one equality filter: no composite index needed)
   const ordersOn = day => db.where(shop, 'orders', [['day', day]]);
