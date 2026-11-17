@@ -54,7 +54,7 @@ async function subId(endpoint) {
 }
 self.addEventListener('push', e => {
   e.waitUntil((async () => {
-    let msg = { title: '💚 จุกจิก คาฟ่า', body: 'มีออเดอร์ LINE ใหม่ แตะเพื่อดู' };
+    let msg = { title: '💚 ชงสุดใจ', body: 'มีออเดอร์ LINE ใหม่ แตะเพื่อดู' };
     try {
       const sub = await self.registration.pushManager.getSubscription();
       if (sub) { const r = await fetch(`${LINE_API}/push/peek/${await subId(sub.endpoint)}`, { cache: 'no-store' }); if (r.ok) msg = await r.json(); }
