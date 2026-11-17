@@ -891,8 +891,15 @@ function pushRow() {
     denied: '🔕 เครื่องนี้ปิดการแจ้งเตือนของแอปไว้ เปิดได้ที่ ตั้งค่าเครื่อง › แอป/การแจ้งเตือน › ชงสุดใจ (หรือตั้งค่าเว็บไซต์ในเบราว์เซอร์)',
     'ios-install': '📱 iPhone/iPad: เพิ่มแอปไปที่หน้าจอโฮมก่อน (ปุ่มแชร์ › เพิ่มไปยังหน้าจอโฮม) แล้วเปิดจากไอคอน จึงจะเปิดแจ้งเตือนได้',
     unsupported: '🔕 เบราว์เซอร์นี้รับแจ้งเตือนไม่ได้ ลองเปิดแอปด้วย Chrome หรือติดตั้งแอปลงหน้าจอโฮม',
+    inapp: '🔕 เปิดอยู่ในเบราว์เซอร์ของ LINE ซึ่งรับแจ้งเตือนไม่ได้ · กด ⋮ มุมขวาบน › เปิดในเบราว์เซอร์ (Chrome) แล้วเปิดแจ้งเตือนจากที่นั่น',
   }[s] || '';
-  return `<div class="push-row ${s}"><p class="small" style="margin:0">${txt}</p>
+  const help = s === 'off' && ui.pushError ? `<div class="push-help"><b>⚠️ ลงทะเบียนแจ้งเตือนไม่สำเร็จ</b> (บริการแจ้งเตือนของ Google ไม่ตอบ) ลองทีละข้อ แล้วกดเปิดอีกครั้ง
+      <ol><li>ปิด<b>แอปบล็อกโฆษณา / VPN</b> ชั่วคราว และดู ตั้งค่าเครื่อง › การเชื่อมต่อ › <b>DNS ส่วนตัว</b> ให้เป็น "อัตโนมัติ" หรือ "ปิด"</li>
+      <li>เปิดแอปนี้ด้วย <b>Google Chrome</b> (ไม่ใช่ Brave, Mi Browser หรือเบราว์เซอร์ในไลน์/เฟซบุ๊ก)</li>
+      <li>อัปเดต <b>Chrome</b> และ <b>บริการ Google Play</b> ใน Play Store</li>
+      <li>ปิดโหมดประหยัดแบตเตอรี่ แล้วปิด-เปิดแอปใหม่</li></ol>
+      <small>ระหว่างนี้ เปิดแอปค้างไว้ตอนขาย จะมีเสียงติ๊ง + สั่น เมื่อออเดอร์เข้า</small></div>` : '';
+  return `<div class="push-row ${s}"><p class="small" style="margin:0">${txt}</p>${help}
     ${s === 'off' ? `<button class="btn primary sm" data-action="push-on" ${ui.pushBusy ? 'disabled' : ''}>${ui.pushBusy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือนบนเครื่องนี้'}</button>` : ''}
     ${s === 'on' ? `<button class="btn ghost sm" data-action="push-test">ส่งทดสอบ</button><button class="btn ghost sm" data-action="push-off">ปิด</button>` : ''}</div>`;
 }
@@ -1773,7 +1780,7 @@ document.addEventListener('click', async e => {
     case 'ord-status': return orderAction(el.dataset.id, el.dataset.s, el.dataset.s === 'ready' ? 'แจ้งลูกค้าแล้ว ☕' : 'รับออเดอร์แล้ว');
     case 'push-on': case 'push-test':
       ui.pushBusy = true; render();
-      try { await S.pushEnable(); toast('เปิดแจ้งเตือนแล้ว · กำลังส่งแจ้งเตือนทดสอบ 🔔'); } catch (e) { toast(e.message); }
+      try { await S.pushEnable(); ui.pushError = false; toast('เปิดแจ้งเตือนแล้ว · กำลังส่งแจ้งเตือนทดสอบ 🔔'); } catch (e) { ui.pushError = e.code === 'push-service'; toast(e.message); }
       ui.pushBusy = false; ui.pushState = await S.pushState().catch(() => 'unsupported'); return render();
     case 'push-off': await S.pushDisable().catch(() => {}); ui.pushState = 'off'; toast('ปิดแจ้งเตือนบนเครื่องนี้แล้ว'); return render();
     case 'banner-photo-remove': await S.deleteMenuPhoto('_banner'); saveLine({ banner: { ...(lineCfg().banner || {}), photo: 0 } }); return toast('ลบรูปแบนเนอร์แล้ว');
