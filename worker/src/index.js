@@ -334,8 +334,9 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       if (parts[0] === 'orders') {
         if (parts.length === 1 && req.method === 'POST') return send(await placeOrder(who, await req.json().catch(() => ({})), ctx), 201);
         if (parts.length === 1 && req.method === 'GET') {
-          const [rows, { settings }] = await Promise.all([ordersOn(Shop.bkk().day), loadShop()]);
-          return send(rows.filter(d => d.data.lineUserId === who.id).map(d => Shop.publicOrder(d.id, d.data, settings)).sort((a, b) => b.createdAt - a.createdAt));
+          // the customer's order history, newest first (one equality filter: no composite index needed)
+          const [rows, { settings }] = await Promise.all([db.where(shop, 'orders', [['lineUserId', who.id]]), loadShop()]);
+          return send(rows.map(d => Shop.publicOrder(d.id, d.data, settings)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50));
         }
         const id = parts[1];
         if (parts.length === 2 && req.method === 'GET') {

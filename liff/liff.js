@@ -88,7 +88,7 @@ function viewMenu() {
   const canOrder = s.open && timeSlots().length > 0;
   return `<header class="shop-head"><div><h1>🐣 ${esc(s.name)}</h1><small>เปิด ${esc(s.from)}–${esc(s.to)} น.</small></div>
       <div class="row gap">${ui.me ? `<span class="stamp">⭐ ${ui.me.stamps % ui.me.stampGoal}/${ui.me.stampGoal}</span>` : ''}
-      <button class="icon-btn" data-action="my-orders" aria-label="ออเดอร์ของฉัน">🧾</button></div></header>
+      <button class="hist-btn" data-action="my-orders" aria-label="ประวัติการสั่งซื้อ">🧾 ประวัติ</button></div></header>
     ${!s.open ? '<p class="closed">😴 ร้านปิดรับออเดอร์ทาง LINE อยู่ตอนนี้ ดูเมนูได้ก่อนนะ</p>'
       : !canOrder ? `<p class="closed">ร้านปิดแล้ววันนี้ พรุ่งนี้เปิด ${esc(s.from)} น.</p>`
       : !s.acceptingNow ? `<p class="closed">⏰ ยังไม่ถึงเวลาเปิด สั่งล่วงหน้าแล้วนัดเวลารับได้</p>` : ''}
@@ -205,11 +205,47 @@ function viewOrder() {
       ${window.liff?.isInClient?.() ? '<button class="btn ghost" data-action="close">กลับไปที่แชท</button>' : ''}</div>`;
 }
 
+// ---------- order history (all days), grouped by day, with "order again" ----------
+const dayName = iso => {
+  const d = new Date(), today = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const y = new Date(Date.now() - 864e5), yest = new Date(y - y.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (iso === today) return 'วันนี้';
+  if (iso === yest) return 'เมื่อวาน';
+  const [yy, mm, dd] = String(iso).split('-').map(Number);
+  return new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(yy, mm - 1, dd));
+};
+const hm = t => t ? new Date(t).toTimeString().slice(0, 5) : '';
+const itemLine = i => `${i.name}${[i.sweet !== undefined && i.sweet !== 100 ? `หวาน ${i.sweet}%` : '', i.note || ''].filter(Boolean).map(x => ` (${x})`).join('')}${i.qty > 1 ? ' ×' + i.qty : ''}`;
 function viewOrders() {
-  return `<header class="shop-head"><button class="icon-btn" data-action="home" aria-label="เมนู">←</button><h1 class="grow">ออเดอร์วันนี้</h1></header>
-    ${ui.orders.length ? `<ul class="order-list">${ui.orders.map(o => `<li><button data-action="open-order" data-id="${esc(o.id)}">
-      <span><b>${esc(o.no)}</b> · ${esc(STATUS[o.status] || o.status)}<br><small class="muted">${esc(o.items.map(i => i.name + (i.qty > 1 ? '×' + i.qty : '')).join(', '))}</small></span>
-      <b class="num">${baht(o.total)}</b></button></li>`).join('')}</ul>` : '<p class="muted center pad">วันนี้ยังไม่มีออเดอร์</p>'}`;
+  const list = ui.orders || [];
+  const days = [...new Set(list.map(o => o.day))];
+  const done = list.filter(o => o.status === 'done');
+  return `<header class="shop-head"><button class="icon-btn" data-action="home" aria-label="เมนู">←</button><h1 class="grow">ประวัติการสั่งซื้อ</h1></header>
+    ${ui.ordersLoading ? '<div class="center pad"><div class="spinner" style="margin:30px auto"></div></div>' : list.length ? `
+    <p class="hist-sum">${done.length} ออเดอร์ที่รับแล้ว · ยอดรวม <b class="num">${baht(done.reduce((s, o) => s + o.total, 0))}</b>${ui.me ? ` · ⭐ ${ui.me.stamps % ui.me.stampGoal}/${ui.me.stampGoal}` : ''}</p>
+    ${days.map(d => `<h3 class="hist-day">${esc(dayName(d))}</h3><ul class="order-list">${list.filter(o => o.day === d).map(o => `<li class="hist-card">
+      <button class="hist-main" data-action="open-order" data-id="${esc(o.id)}">
+        <span class="row between"><b>${esc(o.no)} <small class="muted">${esc(hm(o.createdAt))}</small></b><span class="st st-${esc(o.status)}">${esc(STATUS[o.status] || o.status)}</span></span>
+        <small class="muted">${esc(o.items.map(itemLine).join(', '))}</small>
+        <span class="row between"><small class="muted">${esc(fulfilText(o.fulfil))}</small><b class="num">${baht(o.total)}</b></span>
+      </button>
+      ${ui.shop?.open ? `<button class="btn ghost sm" data-action="reorder" data-id="${esc(o.id)}">🔁 สั่งอีกครั้ง</button>` : ''}</li>`).join('')}</ul>`).join('')}
+    <p class="small muted center">แสดง ${list.length} ออเดอร์ล่าสุด</p>`
+    : '<p class="muted center pad">ยังไม่มีประวัติการสั่งซื้อ<br>สั่งแก้วแรกได้เลย 🥤</p>'}`;
+}
+// put a past order's items back in the cart (what is still on the menu and not sold out)
+function reorder(o) {
+  let added = 0, skipped = 0;
+  for (const i of o.items) {
+    const m = item(i.id);
+    if (!m || m.soldOut) { skipped++; continue; }
+    const st = stylesOf(m), style = st.includes(i.style) ? i.style : st[0] || '';
+    cartAdd(m.id, i.qty, style, m.opts ? (i.sweet ?? 100) : undefined, m.group === 'topping' ? '' : (i.note || ''));
+    added++;
+  }
+  if (!added) return toast('เมนูในออเดอร์นี้ไม่มีขายแล้ว');
+  toast(`ใส่ตะกร้าแล้ว ${added} รายการ${skipped ? ` · ${skipped} รายการไม่มีขายแล้ว` : ''}`);
+  go('checkout');
 }
 
 function viewError() {
@@ -393,7 +429,11 @@ document.addEventListener('click', async e => {
     case 'pay': ui.pay = el.dataset.m; return render();
     case 'fulfil': ui.fulfil = { ...ui.fulfil, mode: el.dataset.m, detail: '' }; return render();
     case 'place': return placeOrder();
-    case 'my-orders': go('orders'); try { ui.orders = await api('/orders'); } catch (err) { toast(err.message); } return render();
+    case 'my-orders':
+      ui.ordersLoading = true; go('orders');
+      try { ui.orders = await api('/orders'); } catch (err) { toast(err.message); }
+      ui.ordersLoading = false; return render();
+    case 'reorder': { const o = (ui.orders || []).find(x => x.id === id); if (o) reorder(o); return; }
     case 'open-order': return openOrder(id);
     case 'refresh': return refreshOrder(ui.order.id);
     case 'save-qr': return saveQR().catch(err => toast('บันทึกไม่ได้: ' + err.message));

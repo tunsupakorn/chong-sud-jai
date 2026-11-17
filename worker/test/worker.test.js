@@ -386,3 +386,16 @@ test('chat button message: no bot reply, the shop\'s devices are notified; quota
   await call('POST', `/shop/orders/${o.data.id}`, { token: owner, body: { action: 'ready' } });
   assert.equal(pushes.length, 1);
 });
+
+test('order history: all of the customer\'s days, newest first, nobody else\'s', async () => {
+  const body = { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' };
+  const a = await call('POST', '/orders', { token: 'cust-A', body });
+  docs[`${SHOP}/orders/${a.data.id}`].data.day = '2026-11-01'; // an older day
+  docs[`${SHOP}/orders/${a.data.id}`].data.createdAt = 1;
+  const b = await call('POST', '/orders', { token: 'cust-A', body });
+  await call('POST', '/orders', { token: 'cust-B', body });
+  const h = await call('GET', '/orders', { token: 'cust-A' });
+  assert.deepEqual(h.data.map(o => o.id), [b.data.id, a.data.id]);
+  assert.equal(h.data[1].day, '2026-11-01');
+  assert.equal(h.data[0].items[0].cost, undefined);
+});
