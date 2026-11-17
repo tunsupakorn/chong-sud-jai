@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: MitrL; src: url(mitr-latin-500-normal.woff2); font-weight: 500; }
+@font-face { font-family: MitrL; src: url(mitr-latin-600-normal.woff2); font-weight: 600; }
+@font-face { font-family: MitrT; src: url(mitr-thai-500-normal.woff2); font-weight: 500; }
+@font-face { font-family: MitrT; src: url(mitr-thai-600-normal.woff2); font-weight: 600; }
+@font-face { font-family: PlexL; src: url(ibm-plex-sans-thai-latin-400-normal.woff2); }
+@font-face { font-family: PlexT; src: url(ibm-plex-sans-thai-thai-400-normal.woff2); }
+:root { --display: MitrL, MitrT, sans-serif; --body: PlexL, PlexT, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #EEF1F6; font-family: var(--body); color: #1F2A44; }
+.sheet { width: 860px; padding: 28px; display: grid; gap: 18px; background: #F7F8FB; }
+.sheet h1 { margin: 0; font: 600 30px var(--display); }
+.sheet .sub { margin: -10px 0 0; color: #5B6478; font-size: 17px; }
+.row { display: grid; grid-template-columns: 250px 1fr; gap: 22px; align-items: start; }
+.label { font: 500 15px var(--display); color: #6B7488; margin: 0 0 8px; }
+.logo { width: 250px; height: 250px; border-radius: 50%; overflow: hidden; box-shadow: 0 8px 26px rgba(20, 30, 60, .18); }
+.logo svg, .logo img { width: 100%; height: 100%; display: block; }
+.rm { width: 100%; aspect-ratio: 2500 / 843; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 20px rgba(20, 30, 60, .12); }
+.rm svg { width: 100%; height: 100%; display: block; }
+/* phone mock */
+.phone { width: 360px; border-radius: 30px; background: #fff; overflow: hidden; box-shadow: 0 10px 30px rgba(20, 30, 60, .2); border: 8px solid #1d1f24; }
+.ph-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #fff; border-bottom: 1px solid #eceff4; }
+.ph-head .av { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; flex: none; }
+.ph-head .av svg, .ph-head .av img { width: 100%; height: 100%; display: block; }
+.ph-head b { font: 600 16px var(--display); }
+.ph-head small { display: block; color: #8a93a6; font-size: 12px; }
+.ph-chat { background: #B9C8DD; padding: 14px 12px; display: grid; gap: 10px; min-height: 190px; }
+.bub { max-width: 82%; padding: 9px 12px; border-radius: 16px; font-size: 14px; line-height: 1.45; background: #fff; }
+.bub.me { justify-self: end; background: #86E07D; }
+.ph-rm { width: 100%; aspect-ratio: 2500 / 843; }
+.ph-rm svg { width: 100%; height: 100%; display: block; }
+.ph-bar { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; font: 500 14px var(--display); background: #fff; border-top: 1px solid #eceff4; }
+.mock-row { display: grid; grid-template-columns: 360px 1fr; gap: 26px; align-items: start; }
+.notes { font-size: 16px; line-height: 1.6; color: #39425a; }
+.notes b { font-family: var(--display); font-weight: 500; }
+.swatches { display: flex; gap: 8px; margin-top: 8px; }
+.swatches i { width: 36px; height: 36px; border-radius: 10px; display: block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+</style>
+</head>
+<body style="margin:0;background:#fff"><svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- B: cup with heart foam (line style) -->
+    <symbol id="cupHeart" viewBox="0 0 200 200">
+      <path d="M40 78 h104 v38 a52 52 0 0 1 -52 52 h0 a52 52 0 0 1 -52 -52 z" fill="none" stroke="currentColor" stroke-width="10" stroke-linejoin="round"/>
+      <path d="M144 92 h10 a18 18 0 0 1 0 36 h-14" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+      <path d="M92 70 c-6 -10 -24 -8 -24 6 c0 12 24 22 24 22 c0 0 24 -10 24 -22 c0 -14 -18 -16 -24 -6 z" fill="currentColor" transform="translate(0,-26)"/>
+      <path d="M70 26 q8 -10 0 -20 M114 26 q8 -10 0 -20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+    </symbol>
+    <symbol id="lnQueue" viewBox="0 0 48 48"><rect x="9" y="6" width="30" height="36" rx="5" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M16 17h16M16 25h16M16 33h9" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></symbol>
+    <symbol id="lnStar" viewBox="0 0 48 48"><path d="M24 6l5.4 11.4 12.6 1.6-9.2 8.6 2.4 12.4L24 34l-11.2 6 2.4-12.4L6 19l12.6-1.6z" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/></symbol>
+    <symbol id="lnMenu" viewBox="0 0 48 48"><rect x="6" y="9" width="36" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M14 19h20M14 27h12" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></symbol>
+    <!-- C: หว้า berries + leaf -->
+    <symbol id="wa" viewBox="0 0 120 120">
+      <path d="M60 18 C78 6 102 10 108 26 C88 30 72 30 60 18 Z" fill="#7BC67E"/>
+      <path d="M60 20 L58 44" stroke="#5E8C4A" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="44" cy="60" r="16" fill="#5B2A86"/><circle cx="72" cy="58" r="16" fill="#6E35A0"/>
+      <circle cx="58" cy="84" r="17" fill="#4A1F70"/><circle cx="40" cy="92" r="12" fill="#6E35A0"/><circle cx="80" cy="88" r="12" fill="#5B2A86"/>
+      <circle cx="39" cy="54" r="4" fill="#fff" opacity=".45"/><circle cx="67" cy="52" r="4" fill="#fff" opacity=".45"/><circle cx="52" cy="78" r="4" fill="#fff" opacity=".45"/>
+    </symbol>
+  </defs>
+</svg>
+<div id="profile" style="width:640px;height:640px"><svg viewBox="0 0 640 640" width="640" height="640">
+        <rect width="640" height="640" fill="#F6EBDD"/>
+        <circle cx="320" cy="320" r="268" fill="none" stroke="#6B4A36" stroke-width="10" stroke-dasharray="2 18" stroke-linecap="round" opacity=".55"/>
+        <use href="#cupHeart" x="190" y="96" width="260" height="260" color="#6B4A36"/>
+        <path d="M92 70 c-6 -10 -24 -8 -24 6 c0 12 24 22 24 22 c0 0 24 -10 24 -22 c0 -14 -18 -16 -24 -6 z" fill="#D9653B" transform="translate(190,96) scale(1.3) translate(0,-26)"/>
+        <text x="320" y="452" text-anchor="middle" font-family="MitrT" font-weight="600" font-size="96" fill="#3E2A1F">ชงสุดใจ</text>
+        <text x="320" y="512" text-anchor="middle" font-family="MitrL" font-weight="500" font-size="34" letter-spacing="10" fill="#9A7B66">CAFE · NAWA</text>
+      </svg></div>
+<div id="cover" style="width:1080px;height:878px"><svg viewBox="0 0 1080 878" width="1080" height="878">
+  <defs><pattern id="beans" width="90" height="90" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="4" fill="#6B4A36" opacity=".10"/><circle cx="65" cy="65" r="4" fill="#D9653B" opacity=".10"/></pattern></defs>
+  <rect width="1080" height="878" fill="#F6EBDD"/><rect width="1080" height="878" fill="url(#beans)"/>
+  <circle cx="860" cy="330" r="230" fill="#EBDAC6"/>
+  <use href="#cupHeart" x="700" y="150" width="330" height="330" color="#6B4A36"/>
+  <path d="M92 70 c-6 -10 -24 -8 -24 6 c0 12 24 22 24 22 c0 0 24 -10 24 -22 c0 -14 -18 -16 -24 -6 z" fill="#D9653B" transform="translate(700,150) scale(1.65) translate(0,-26)"/>
+  <text x="80" y="300" font-family="MitrT" font-weight="600" font-size="150" fill="#3E2A1F">ชงสุดใจ</text>
+  <text x="86" y="380" font-family="MitrT" font-weight="500" font-size="54" fill="#D9653B">ชงด้วยใจ ทุกแก้ว</text>
+  <text x="86" y="460" font-family="PlexT" font-size="40" fill="#6B4A36">ปั่นผลไม้ · ชา · กาแฟ · ขนม</text>
+  <text x="86" y="520" font-family="PlexT" font-size="36" fill="#9A7B66">ถ.สุดใจ · นาหว้า · นครพนม</text>
+</svg></div>
+<div id="rm" style="width:2500px;height:843px"><svg viewBox="0 0 2500 843" width="2500" height="843">
+        <rect width="2500" height="843" fill="#F6EBDD"/>
+        <rect x="28" y="28" width="1194" height="787" rx="40" fill="#6B4A36"/>
+        <use href="#cupHeart" x="90" y="190" width="420" height="420" color="#F6EBDD"/>
+        <text x="560" y="390" font-family="MitrT" font-weight="600" font-size="118" fill="#FFF8EF">สั่งเครื่องดื่ม</text>
+        <text x="564" y="495" font-family="PlexT" font-size="58" fill="#E9D3BF">รับที่ร้าน หรือส่งถึงที่</text>
+        <rect x="564" y="560" width="440" height="96" rx="48" fill="#D9653B"/>
+        <text x="784" y="625" text-anchor="middle" font-family="MitrT" font-weight="500" font-size="54" fill="#fff">สั่งเลย ›</text>
+        <rect x="1250" y="28" width="597" height="381" rx="40" fill="#FFF8EF" stroke="#E5D3C1" stroke-width="4"/>
+        <use href="#lnQueue" x="1488" y="70" width="120" height="120" color="#6B4A36"/>
+        <text x="1548" y="320" text-anchor="middle" font-family="MitrT" font-weight="600" font-size="76" fill="#3E2A1F">คิวของฉัน</text>
+        <rect x="1875" y="28" width="597" height="381" rx="40" fill="#FFF8EF" stroke="#E5D3C1" stroke-width="4"/>
+        <use href="#lnStar" x="2113" y="70" width="120" height="120" color="#D9653B"/>
+        <text x="2173" y="320" text-anchor="middle" font-family="MitrT" font-weight="600" font-size="76" fill="#3E2A1F">แต้มสะสม</text>
+        <rect x="1250" y="434" width="1222" height="381" rx="40" fill="#FFF8EF" stroke="#E5D3C1" stroke-width="4"/>
+        <use href="#lnMenu" x="1330" y="560" width="130" height="130" color="#6B4A36"/>
+        <text x="1520" y="610" font-family="MitrT" font-weight="600" font-size="86" fill="#3E2A1F">เมนูวันนี้</text>
+        <text x="1524" y="700" font-family="PlexT" font-size="54" fill="#9A7B66">ดูรูปเมนูในแชท</text>
+      </svg></div>
+<div id="icon512" style="width:512px;height:512px"><img src="icon-b.svg" width="512" height="512" style="display:block"></div>
+<div id="icon192" style="width:192px;height:192px"><img src="icon-b.svg" width="192" height="192" style="display:block"></div>
+<div id="icon180" style="width:180px;height:180px"><img src="icon-b.svg" width="180" height="180" style="display:block"></div>
+</body></html>
