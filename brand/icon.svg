@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- ชงสุดใจ app icon: cup with heart foam, cream / coffee brown / terracotta -->
+  <rect width="512" height="512" fill="#F6EBDD"/>
+  <circle cx="256" cy="256" r="206" fill="none" stroke="#6B4A36" stroke-width="8" stroke-dasharray="1.5 16" stroke-linecap="round" opacity=".5"/>
+  <g transform="translate(106,112) scale(1.5)" fill="none" stroke="#6B4A36" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M40 78 h104 v38 a52 52 0 0 1 -52 52 a52 52 0 0 1 -52 -52 z"/>
+    <path d="M144 92 h10 a18 18 0 0 1 0 36 h-14"/>
+    <path d="M70 26 q8 -10 0 -20 M114 26 q8 -10 0 -20" stroke-width="7" opacity=".55"/>
+  </g>
+  <path transform="translate(106,112) scale(1.5) translate(0,-26)" d="M92 70 c-6 -10 -24 -8 -24 6 c0 12 24 22 24 22 c0 0 24 -10 24 -22 c0 -14 -18 -16 -24 -6 z" fill="#D9653B"/>
+</svg>
