@@ -1,5 +1,5 @@
-// JukJik service worker: network-first for the app's own files, cache as offline fallback,
-// plus the Android share target ("Share → จุกจิก") for slip images and PDFs.
+// Chong Sud Jai service worker: network-first for the app's own files, cache as offline fallback,
+// plus the Android share target ("Share → ชงสุดใจ") for slip images and PDFs.
 importScripts('version.js'); // self.APP_VERSION
 const CACHE = 'kaa-' + self.APP_VERSION;
 const SHARE = 'kaa-share';

@@ -1,4 +1,4 @@
-# 🐣 จุกจิก JukJik
+# 🐣 ชงสุดใจ Chong Sud Jai
 
 แอปจดรายรับรายจ่ายส่วนตัว อ่านสลิปและใบแจ้งยอดบัตรเครดิตด้วย Gemini ซิงก์ทุกเครื่องด้วย Firebase
 ไม่ต้องติดตั้งอะไรบนคอม ไม่ต้องผ่าน App Store — เปิดผ่านเว็บแล้ว "เพิ่มไปยังหน้าจอโฮม" ใช้ได้เหมือนแอปจริง
@@ -18,10 +18,10 @@
 
 ## ขั้นที่ 1 — เอาขึ้น GitHub Pages (ได้ลิงก์ใช้งาน)
 
-1. ไปที่ github.com › ปุ่ม **New** (สร้าง repository) › ตั้งชื่อ `jukjik` › เลือก **Public** › Create
+1. ไปที่ github.com › ปุ่ม **New** (สร้าง repository) › ตั้งชื่อ `chong-sud-jai` › เลือก **Public** › Create
 2. ในหน้า repo กด **uploading an existing file** › ลากไฟล์ทั้งหมดในโฟลเดอร์นี้ (รวมโฟลเดอร์ `icons`) ใส่ › **Commit changes**
 3. ไปที่ **Settings › Pages** › Source: **Deploy from a branch** › Branch: `main` / `(root)` › Save
-4. รอ 1–2 นาที จะได้ลิงก์ `https://<ชื่อผู้ใช้>.github.io/jukjik/`
+4. รอ 1–2 นาที จะได้ลิงก์ `https://<ชื่อผู้ใช้>.github.io/chong-sud-jai/`
 5. เปิดลิงก์บนมือถือ
    - **iPhone/iPad:** Safari › ปุ่มแชร์ › *เพิ่มไปยังหน้าจอโฮม*
    - **Android:** Chrome › ⋮ › *ติดตั้งแอป*
@@ -41,7 +41,7 @@
 
 ## ขั้นที่ 3 — Firebase (ซิงก์ทุกเครื่อง, ฟรี)
 
-1. เข้า **console.firebase.google.com** › **Create a project** › ตั้งชื่อ `jukjik` (ปิด Google Analytics ได้)
+1. เข้า **console.firebase.google.com** › **Create a project** › ตั้งชื่อ `chong-sud-jai` (ปิด Google Analytics ได้)
 2. **Build › Authentication › Get started** › แท็บ Sign-in method › เปิด **Email/Password** และ **Google**
 3. Authentication › **Settings › Authorized domains** › Add domain › ใส่ `<ชื่อผู้ใช้>.github.io`
 4. **Build › Firestore Database › Create database** › เลือก location `asia-southeast1` (สิงคโปร์) › Production mode
@@ -65,7 +65,7 @@ Firebase ยังเป็นที่เก็บหลัก ส่วน Goo
 โค้ดสคริปต์อยู่ในโฟลเดอร์ `apps-script/`
 
 1. สร้าง Sheet และสคริปต์ด้วย [clasp](https://github.com/google/clasp):
-   `npx @google/clasp login` แล้ว `npx @google/clasp create-script --type sheets --title "จุกจิก JukJik" --rootDir apps-script`
+   `npx @google/clasp login` แล้ว `npx @google/clasp create-script --type sheets --title "ชงสุดใจ Chong Sud Jai" --rootDir apps-script`
    (ถ้า clasp เขียนทับ `apps-script/appsscript.json` ให้คืนค่าไฟล์จาก git ก่อน)
 2. `npx @google/clasp push --force` แล้ว `npx @google/clasp create-deployment` จะได้ deployment id
 3. เปิดหน้าแก้ไขสคริปต์ เลือกฟังก์ชัน `setup` แล้วกด **เรียกใช้** จากนั้นกด **อนุญาต** สิทธิ์
@@ -96,7 +96,7 @@ LINE Platform ── webhook ─────────────────
    - คัดลอก **Channel ID** ด้วย (Worker ออก access token อายุสั้นเองจาก ID + secret ไม่ต้อง issue long-lived token)
 4. Provider เดียวกัน › **Create a new channel › LINE Login** (ประเภท Web app) › คัดลอก **Channel ID**
 5. ใน LINE Login channel › แท็บ **LIFF** › Add:
-   - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/jukjik-kaa/liff/index.html`
+   - Size: **Full** · Endpoint URL: `https://tunsupakorn.github.io/chong-sud-jai/liff/index.html`
    - Scopes: `openid`, `profile`, `chat_message.write` · Bot link feature: **On (Aggressive)** แล้วเลือกบัญชี OA ของร้าน
    - คัดลอก **LIFF ID** (เช่น `2001234567-AbCdEfGh`)
 
@@ -126,7 +126,7 @@ LINE Platform ── webhook ─────────────────
 - ตั้ง **พร้อมเพย์ร้าน** ไว้ด้วย ลูกค้าถึงเลือกโอนได้
 
 ### 5.4 ล็อกอินแอปร้านด้วย LINE (แทน Gmail)
-1. LINE Login channel › แท็บ LIFF › **Add** แอปที่ 2: ชื่อ `แอปร้าน` · Size **Full** · Endpoint URL `https://tunsupakorn.github.io/jukjik-kaa/`
+1. LINE Login channel › แท็บ LIFF › **Add** แอปที่ 2: ชื่อ `แอปร้าน` · Size **Full** · Endpoint URL `https://tunsupakorn.github.io/chong-sud-jai/`
    · Scopes **openid**, **profile** · Add friend option **Off** › ใส่ LIFF ID ที่ได้ใน `firebase-config.js` › `ownerLiffId`
 2. Firebase Console › Firestore › **Rules** › วางเนื้อหา `firestore.rules` ใหม่ › **Publish** (เพิ่มสิทธิ์ให้บัญชี LINE ของร้าน)
 3. เปิดแอป › **💬 เข้าสู่ระบบด้วย LINE** ครั้งแรกจะขึ้นรหัส LINE (`U…`) › ใส่ใน `worker/wrangler.toml` › `OWNER_LINE_IDS`

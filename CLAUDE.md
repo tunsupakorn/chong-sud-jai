@@ -1,4 +1,4 @@
-# จุกจิกการค้า — notes for Claude
+# ชงสุดใจ — notes for Claude
 
 - **Every change that reaches users bumps the version** in `version.js` (`APP_VERSION`, semver: new feature = minor, fix = patch)
   and sets `APP_UPDATED` to the date. The settings page shows it, and `sw.js` names its cache after it so devices pick up new files.

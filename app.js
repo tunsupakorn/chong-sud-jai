@@ -354,7 +354,7 @@ function viewScan() {
   const off = sc.busy || !hasKey ? 'disabled' : '';
   const tray = ui.tray;
   return `${header('อ่านสลิป', 'record')}
-    ${!hasKey ? `<section class="card notice"><p>🔑 ต้องใส่ Gemini API key ก่อน (ฟรี) เพื่อให้จุกจิกอ่านสลิปได้</p>
+    ${!hasKey ? `<section class="card notice"><p>🔑 ต้องใส่ Gemini API key ก่อน (ฟรี) เพื่อให้ชงสุดใจอ่านสลิปได้</p>
       <button class="btn primary sm" data-action="goto-gemini">ไปใส่ key</button></section>` : ''}
     <section class="pick ${off}" data-drop>
       <label class="pick-main">
@@ -367,7 +367,7 @@ function viewScan() {
         <label class="pick-btn"><input type="file" accept="application/pdf,.pdf" multiple data-input="pick" ${off}>📄<span>ใบแจ้งยอด PDF</span></label>
         <button class="pick-btn" data-action="paste-img" ${off}>📋<span>วางรูป</span></button>
       </div>
-      <small class="pick-hint">💡 ${/Android/.test(navigator.userAgent) ? 'แชร์รูปจากแกลเลอรี / LINE / แอปธนาคาร มาที่ “จุกจิก” ได้เลย (ติดตั้งแอปบนหน้าจอหลักก่อน)' : 'ลากรูปมาวาง หรือกด Ctrl+V เพื่อวางรูปได้เลย'}</small>
+      <small class="pick-hint">💡 ${/Android/.test(navigator.userAgent) ? 'แชร์รูปจากแกลเลอรี / LINE / แอปธนาคาร มาที่ “ชงสุดใจ” ได้เลย (ติดตั้งแอปบนหน้าจอหลักก่อน)' : 'ลากรูปมาวาง หรือกด Ctrl+V เพื่อวางรูปได้เลย'}</small>
     </section>
     ${tray.length ? `<section class="tray">
       <div class="row between"><b>เลือกไว้ ${tray.length} ไฟล์</b><button class="link small" data-action="tray-clear">ล้าง</button></div>
@@ -379,7 +379,7 @@ function viewScan() {
     </section>` : ''}
     ${ui.slipNote ? `<p class="muted small center" id="slip-note">${esc(ui.slipNote)}</p>` : ''}
     <label class="check"><input type="checkbox" data-input="only30" ${sc.only30 ? 'checked' : ''}> เลือกเฉพาะสลิป 30 วันล่าสุดให้อัตโนมัติ</label>
-    ${sc.busy ? `<section class="card progress"><div class="spinner"></div><p>จุกจิกกำลังอ่าน… ${sc.done}/${sc.total}</p>
+    ${sc.busy ? `<section class="card progress"><div class="spinner"></div><p>ชงสุดใจกำลังอ่าน… ${sc.done}/${sc.total}</p>
       <div class="meter"><div style="width:${sc.total ? sc.done / sc.total * 100 : 0}%"></div></div>
       <small class="muted" id="scan-note">${esc(scanNote())}</small>
       <button class="btn ghost sm" data-action="scan-cancel" ${sc.cancel ? 'disabled' : ''}>${sc.cancel ? 'กำลังยกเลิก…' : 'ยกเลิก'}</button></section>` : ''}
@@ -541,7 +541,7 @@ function viewGate() {
     <div class="ob-art"><img src="icons/icon.svg" alt="" class="ob-chick"><span class="ob-emoji">${verify ? '📧' : '🔒'}</span></div>
     <h2>${verify ? 'ยืนยันอีเมลก่อนใช้งาน' : 'บัญชีนี้ยังไม่ได้รับอนุญาต'}</h2>
     ${verify
-      ? `<p>จุกจิกส่งลิงก์ยืนยันไปที่ <b>${email}</b> แล้ว เปิดอีเมล (ดูในโฟลเดอร์สแปมด้วย) กดลิงก์ แล้วกลับมากดปุ่มด้านล่าง</p>
+      ? `<p>ชงสุดใจส่งลิงก์ยืนยันไปที่ <b>${email}</b> แล้ว เปิดอีเมล (ดูในโฟลเดอร์สแปมด้วย) กดลิงก์ แล้วกลับมากดปุ่มด้านล่าง</p>
          <button class="btn primary big" data-action="gate-recheck">ยืนยันแล้ว เข้าใช้งาน</button>
          <button class="btn ghost" data-action="gate-resend">ส่งอีเมลยืนยันอีกครั้ง</button>`
       : `<p>แอปนี้เปิดให้เฉพาะคนที่เจ้าของแอปอนุญาต ส่งอีเมลนี้ให้เจ้าของแอปเพิ่มให้:</p>
@@ -554,7 +554,7 @@ function viewGate() {
 }
 
 // ---------- owner: who may use the app ----------
-const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
+const APP_URL = 'https://tunsupakorn.github.io/chong-sud-jai/';
 const TEMPLATE_URL = ''; // ชีตต้นแบบของร้าน: เพิ่มในเฟสถัดไป
 function inviteText(name) {
   return `${name ? `สวัสดี ${name} ` : ''}ชวนมาใช้ "ชงสุดใจ" แอปจดรายรับรายจ่าย อ่านสลิปให้อัตโนมัติ 🐣
@@ -641,8 +641,8 @@ function sheetCard() {
           <button class="btn ghost sm" data-action="sheet-copy-code">📋 คัดลอกโค้ดสคริปต์</button></li>
         <li><span class="small">③ ปุ่ม <b>การทำให้ใช้งานได้ › การทำให้ใช้งานได้รายการใหม่</b> › ⚙️ เลือก <b>เว็บแอป</b> ›
           เรียกใช้ในฐานะ <b>ฉัน</b> · ผู้มีสิทธิ์เข้าถึง <b>ทุกคน</b> › ทำให้ใช้งานได้ › <b>ให้สิทธิ์</b> (ขั้นสูง › ไปที่… › อนุญาต)</span></li>
-        <li><span class="small">④ กลับไปที่ชีต <b>รีเฟรชหน้า</b> › เมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> › กดปุ่ม
-          <b>“เปิดแอปจุกจิกและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ!</span></li>
+        <li><span class="small">④ กลับไปที่ชีต <b>รีเฟรชหน้า</b> › เมนู <b>🐣 ชงสุดใจ › เชื่อมกับแอปชงสุดใจ</b> › กดปุ่ม
+          <b>“เปิดแอปชงสุดใจและเชื่อมต่อให้อัตโนมัติ”</b> — เสร็จ!</span></li>
       </ol>
       <details class="more"><summary>มีลิงก์ web app อยู่แล้ว</summary>
         <input type="url" placeholder="https://script.google.com/macros/s/…/exec" data-input="sheeturl" autocomplete="off">
@@ -668,7 +668,7 @@ function sheetCard() {
       ${Sheet.slipFolderUrl() ? `<a class="btn ghost sm" href="${esc(Sheet.slipFolderUrl())}" target="_blank" rel="noopener">📁 โฟลเดอร์สลิป</a>` : ''}
     </div>
     <details class="more"><summary>ตั้งค่าเพิ่มเติม</summary>
-      <label class="check"><input type="checkbox" data-input="saveslips" ${slips ? 'checked' : ''}> เก็บรูปสลิปไว้ใน Google Drive (โฟลเดอร์ “จุกจิก JukJik — สลิป” แยกตามเดือน)</label>
+      <label class="check"><input type="checkbox" data-input="saveslips" ${slips ? 'checked' : ''}> เก็บรูปสลิปไว้ใน Google Drive (โฟลเดอร์ “ชงสุดใจ Chong Sud Jai — สลิป” แยกตามเดือน)</label>
       <div class="row gap wrap">
         <button class="btn ghost sm" data-action="sheet-sync" ${s.status === 'syncing' ? 'disabled' : ''}>ซิงก์ตอนนี้</button>
         <button class="btn ghost sm" data-action="sheet-disconnect">ยกเลิกการเชื่อม</button>
@@ -1564,7 +1564,7 @@ function takeConnectLink() {
   if (!pending) return;
   ui.view = 'settings';
   if (state.cloudConfigured && !(state.mode === 'cloud' && state.syncStatus === 'synced')) {
-    if (state.syncStatus === 'signed-out' && !takeConnectLink.told) { takeConnectLink.told = true; toast('ล็อกอินก่อน แล้วจุกจิกจะเชื่อม Google Sheet ให้เอง'); render(); }
+    if (state.syncStatus === 'signed-out' && !takeConnectLink.told) { takeConnectLink.told = true; toast('ล็อกอินก่อน แล้วชงสุดใจจะเชื่อม Google Sheet ให้เอง'); render(); }
     return; // try again once the account has loaded
   }
   try { sessionStorage.removeItem('jj_connect'); } catch {}
@@ -1577,7 +1577,7 @@ function takeConnectLink() {
 }
 window.addEventListener('hashchange', takeConnectLink);
 
-// Files shared to the app (Android share sheet → "จุกจิก"): the service worker parks them in a cache.
+// Files shared to the app (Android share sheet → "ชงสุดใจ"): the service worker parks them in a cache.
 async function takeSharedFiles() {
   if (!new URLSearchParams(location.search).has('shared')) return;
   history.replaceState(null, '', location.pathname);
@@ -1935,7 +1935,7 @@ document.addEventListener('click', async e => {
     case 'allow-invite': {
       const a = state.allowList.find(x => x.email === el.dataset.e);
       const text = inviteText(a?.name);
-      try { if (navigator.share) await navigator.share({ title: 'ชวนใช้จุกจิก', text }); else { await navigator.clipboard.writeText(text); toast('คัดลอกข้อความชวนแล้ว ส่งทาง LINE ได้เลย'); } }
+      try { if (navigator.share) await navigator.share({ title: 'ชวนใช้ชงสุดใจ', text }); else { await navigator.clipboard.writeText(text); toast('คัดลอกข้อความชวนแล้ว ส่งทาง LINE ได้เลย'); } }
       catch (err) { if (err?.name !== 'AbortError') { try { await navigator.clipboard.writeText(text); toast('คัดลอกข้อความชวนแล้ว'); } catch { prompt('คัดลอกข้อความนี้', text); } } }
       return;
     }
@@ -1975,7 +1975,7 @@ document.addEventListener('click', async e => {
         if (!/function doPost/.test(code)) throw new Error('โหลดโค้ดไม่ได้');
         await navigator.clipboard.writeText(code);
         return toast('คัดลอกโค้ดแล้ว ไปวางใน Apps Script ได้เลย');
-      } catch (e) { window.open('https://github.com/tunsupakorn/jukjik-kaa/blob/main/apps-script/Code.gs', '_blank', 'noopener'); return toast('คัดลอกเองจากหน้าที่เปิดขึ้น (ปุ่ม Copy raw file)'); }
+      } catch (e) { window.open('https://github.com/tunsupakorn/chong-sud-jai/blob/main/apps-script/Code.gs', '_blank', 'noopener'); return toast('คัดลอกเองจากหน้าที่เปิดขึ้น (ปุ่ม Copy raw file)'); }
     }
     case 'sheet-paste': {
       try {
@@ -2024,13 +2024,13 @@ document.addEventListener('click', async e => {
       ui.wipe = null; return render();
     }
     case 'export-json':
-      return download(`jukjik-backup-${todayISO()}.json`, JSON.stringify({ app: 'jukjik', version: 1, tx: state.tx, settings: state.settings }, null, 2), 'application/json');
+      return download(`chong-sud-jai-backup-${todayISO()}.json`, JSON.stringify({ app: 'jukjik', version: 1, tx: state.tx, settings: state.settings }, null, 2), 'application/json');
     case 'export-csv': {
       const head = 'date,type,amount,category,method,merchant,note';
       const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const rows = [...state.tx].sort((a, b) => a.date.localeCompare(b.date))
         .map(t => [t.date, t.type, t.amount, catById(t.cat).name, t.method, t.merchant, t.note].map(q).join(','));
-      return download(`jukjik-${todayISO()}.csv`, '﻿' + [head, ...rows].join('\n'), 'text/csv');
+      return download(`chong-sud-jai-${todayISO()}.csv`, '﻿' + [head, ...rows].join('\n'), 'text/csv');
     }
   }
 });
