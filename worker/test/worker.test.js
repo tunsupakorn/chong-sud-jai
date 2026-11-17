@@ -399,3 +399,19 @@ test('order history: all of the customer\'s days, newest first, nobody else\'s',
   assert.equal(h.data[1].day, '2026-11-01');
   assert.equal(h.data[0].items[0].cost, undefined);
 });
+
+test('customer clears their own history: older finished orders hidden, open ones and stamps stay, others untouched', async () => {
+  const body = { items: [{ id: 'm_thaitea', qty: 1 }], payMethod: 'cash' };
+  const a = await call('POST', '/orders', { token: 'cust-A', body });
+  docs[`${SHOP}/orders/${a.data.id}`].data.status = 'done';
+  docs[`${SHOP}/orders/${a.data.id}`].data.createdAt = Date.now() - 1000;
+  const b = await call('POST', '/orders', { token: 'cust-A', body }); // still open
+  docs[`${SHOP}/orders/${b.data.id}`].data.createdAt = Date.now() - 1000;
+  await call('POST', '/orders', { token: 'cust-B', body });
+  assert.equal((await call('POST', '/orders/clear-history', { body: {} })).status, 401);
+  assert.equal((await call('POST', '/orders/clear-history', { token: 'cust-A', body: {} })).status, 200);
+  const h = await call('GET', '/orders', { token: 'cust-A' });
+  assert.deepEqual(h.data.map(o => o.id), [b.data.id]);
+  assert.ok(docs[`${SHOP}/orders/${a.data.id}`], 'the shop keeps the order');
+  assert.equal((await call('GET', '/orders', { token: 'cust-B' })).data.length, 1);
+});

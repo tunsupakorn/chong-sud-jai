@@ -531,3 +531,6 @@ a.btn.line-btn { color: #fff; }
 .meter.quota div { background: #06C755; }
 .meter.quota.near div { background: var(--orange); }
 .meter.quota.full div { background: var(--danger); }
+.wipe-btn { display: block; margin-top: 12px; }
+.sheet-body.wipe { display: grid; gap: 12px; }
+.sheet-body.wipe .check { align-items: flex-start; line-height: 1.45; }

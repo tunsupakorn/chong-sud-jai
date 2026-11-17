@@ -490,6 +490,7 @@ function viewSettings() {
         <label class="btn ghost sm">นำเข้า JSON<input type="file" accept="application/json" data-input="import" hidden></label>
       </div>
       <small class="muted">ทั้งหมด ${state.tx.length} รายการ</small>
+      <button class="btn danger sm wipe-btn" data-action="wipe-open">🗑️ ลบประวัติทั้งหมด…</button>
     </section></details>
 
     <section class="card"><h3>📖 วิธีใช้งาน</h3>
@@ -997,6 +998,24 @@ function watchNewOrders() {
 const orderById = id => state.orders.find(o => o.id === id);
 async function orderAction(id, action, msg, reason) {
   try { await S.orderAction(id, action, reason); if (msg) toast(msg); } catch (e) { toast('อัปเดตไม่ได้: ' + e.message); }
+}
+
+// ---------- ลบประวัติทั้งหมด (owner) ----------
+function renderWipe() {
+  const w = ui.wipe, cloud = state.mode === 'cloud', any = w.tx || w.orders || w.customers;
+  const ok = any && w.word.trim() === 'ลบ' && !w.busy;
+  $('#sheet').innerHTML = `<div class="sheet-body wipe">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="row between"><h2>🗑️ ลบประวัติทั้งหมด</h2><button type="button" class="icon-btn" data-action="close-sheet" aria-label="ปิด">✕</button></div>
+    <p class="small muted" style="margin:0">ใช้ล้างข้อมูลที่ลองทดสอบก่อนเปิดร้านจริง หรือเริ่มบัญชีใหม่ · <b>ลบแล้วกู้คืนไม่ได้</b> แนะนำกดสำรองก่อน</p>
+    <button type="button" class="btn ghost sm" data-action="export-json">💾 สำรองข้อมูล (JSON) ก่อน</button>
+    <label class="check"><input type="checkbox" data-wipe="tx" ${w.tx ? 'checked' : ''}> รายรับ-รายจ่ายทั้งหมด <b>${nf.format(state.tx.length)}</b> รายการ และรูปสลิป</label>
+    ${cloud ? `<label class="check"><input type="checkbox" data-wipe="orders" ${w.orders ? 'checked' : ''}> ออเดอร์ LINE ที่เสร็จ/ยกเลิกแล้ว <small class="muted">(ลูกค้าจะไม่เห็นประวัติเก่า · ออเดอร์ที่ยังค้างไม่ลบ)</small></label>
+    <label class="check"><input type="checkbox" data-wipe="customers" ${w.customers ? 'checked' : ''}> แต้มสะสมของลูกค้า LINE <small class="muted">(ทุกคนเริ่ม 0 ใหม่)</small></label>` : ''}
+    <p class="small muted" style="margin:0">ไม่ลบ: เมนู รูปเมนู หมวดหมู่ และการตั้งค่าร้าน${Sheet.isConnected() && w.tx ? ' · Google Sheet จะถูกล้างตามไปด้วย' : ''}</p>
+    <label class="field">พิมพ์คำว่า <b>ลบ</b> เพื่อยืนยัน<input data-wipe="word" value="${esc(w.word)}" autocomplete="off" placeholder="ลบ"></label>
+    <button type="button" class="btn danger big" data-action="wipe-go" ${ok ? '' : 'disabled'}>${w.busy ? 'กำลังลบ…' : '🗑️ ลบที่เลือกไว้'}</button>
+  </div>`;
 }
 
 // ---------- add / edit sheet ----------
@@ -1990,6 +2009,20 @@ document.addEventListener('click', async e => {
     }
     case 'owner-save': S.saveSettings({ ownerNames: $('[data-input="owner"]').value.trim() }); return toast('บันทึกชื่อแล้ว');
     case 'theme': S.savePrefs({ theme: el.dataset.t }); applyTheme(); return render();
+    case 'wipe-open':
+      ui.wipe = { tx: true, orders: state.mode === 'cloud', customers: false, word: '', busy: false };
+      renderWipe(); return $('#sheet').showModal();
+    case 'wipe-go': {
+      const w = ui.wipe; if (!w || w.busy || w.word.trim() !== 'ลบ') return;
+      w.busy = true; renderWipe();
+      try {
+        const n = await S.wipeHistory(w);
+        $('#sheet').close();
+        toast(`ลบแล้ว · รายการ ${nf.format(n.tx)}${w.orders ? ` · ออเดอร์ ${nf.format(n.orders)}` : ''}${w.customers ? ` · ลูกค้า ${nf.format(n.customers)}` : ''}`);
+        if (w.tx && Sheet.isConnected()) Sheet.syncNow(true);
+      } catch (e) { w.busy = false; renderWipe(); toast('ลบไม่สำเร็จ: ' + e.message); }
+      ui.wipe = null; return render();
+    }
     case 'export-json':
       return download(`jukjik-backup-${todayISO()}.json`, JSON.stringify({ app: 'jukjik', version: 1, tx: state.tx, settings: state.settings }, null, 2), 'application/json');
     case 'export-csv': {
@@ -2053,6 +2086,11 @@ document.addEventListener('input', e => {
   if (t.dataset.ce) { catDraft[t.dataset.ce] = t.value; return; }
   if (t.dataset.mn) { menuDraft[t.dataset.mn] = t.type === 'checkbox' ? t.checked : t.value; return; }
   if (t.dataset.input === 'pick-note' && ui.pick) { ui.pick.note = t.value; return; }
+  if (t.dataset.wipe && ui.wipe) {
+    const w = ui.wipe; if (t.type === 'checkbox') w[t.dataset.wipe] = t.checked; else w.word = t.value;
+    const btn = $('[data-action="wipe-go"]'); if (btn) btn.disabled = !((w.tx || w.orders || w.customers) && w.word.trim() === 'ลบ');
+    return;
+  }
   if (t.dataset.sp) { menuDraft.sp[t.dataset.sp] = t.value; return; }
   if (t.dataset.pay) {
     ui.pay.received = t.value;

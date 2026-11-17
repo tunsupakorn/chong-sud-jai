@@ -230,7 +230,8 @@ function viewOrders() {
         <span class="row between"><small class="muted">${esc(fulfilText(o.fulfil))}</small><b class="num">${baht(o.total)}</b></span>
       </button>
       ${ui.shop?.open ? `<button class="btn ghost sm" data-action="reorder" data-id="${esc(o.id)}">🔁 สั่งอีกครั้ง</button>` : ''}</li>`).join('')}</ul>`).join('')}
-    <p class="small muted center">แสดง ${list.length} ออเดอร์ล่าสุด</p>`
+    <p class="small muted center">แสดง ${list.length} ออเดอร์ล่าสุด</p>
+    ${list.some(o => !['new', 'accepted', 'ready'].includes(o.status)) ? '<div class="center"><button class="link small hist-clear" data-action="clear-history">🗑️ ลบประวัติการสั่งซื้อ</button></div>' : ''}`
     : '<p class="muted center pad">ยังไม่มีประวัติการสั่งซื้อ<br>สั่งแก้วแรกได้เลย 🥤</p>'}`;
 }
 // put a past order's items back in the cart (what is still on the menu and not sold out)
@@ -433,6 +434,13 @@ document.addEventListener('click', async e => {
       ui.ordersLoading = true; go('orders');
       try { ui.orders = await api('/orders'); } catch (err) { toast(err.message); }
       ui.ordersLoading = false; return render();
+    case 'clear-history':
+      if (!confirm('ลบประวัติการสั่งซื้อทั้งหมด?\n\nออเดอร์ที่ยังไม่เสร็จจะยังอยู่ แต้มสะสมไม่หาย\nลบแล้วดูย้อนหลังไม่ได้อีก')) return;
+      try {
+        await api('/orders/clear-history', { method: 'POST', body: {} });
+        ui.orders = await api('/orders'); toast('ลบประวัติแล้ว');
+      } catch (err) { toast(err.message); }
+      return render();
     case 'reorder': { const o = (ui.orders || []).find(x => x.id === id); if (o) reorder(o); return; }
     case 'open-order': return openOrder(id);
     case 'refresh': return refreshOrder(ui.order.id);
