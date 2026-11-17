@@ -86,7 +86,7 @@ function viewMenu() {
   const toppings = ui.menu.filter(m => m.group === 'topping');
   const qtyOf = id => ui.cart.filter(l => l.id === id).reduce((a, l) => a + l.qty, 0);
   const canOrder = s.open && timeSlots().length > 0;
-  return `<header class="shop-head"><div><h1>🐣 ${esc(s.name)}</h1><small>เปิด ${esc(s.from)}–${esc(s.to)} น.</small></div>
+  return `<header class="shop-head"><div><h1 class="shop-name"><img src="../icons/icon.svg" alt="" width="34" height="34">${esc(s.name)}</h1><small>เปิด ${esc(s.from)}–${esc(s.to)} น.</small></div>
       <div class="row gap">${ui.me ? `<span class="stamp">⭐ ${ui.me.stamps % ui.me.stampGoal}/${ui.me.stampGoal}</span>` : ''}
       <button class="hist-btn" data-action="my-orders" aria-label="ประวัติการสั่งซื้อ">🧾 ประวัติ</button></div></header>
     ${!s.open ? '<p class="closed">😴 ร้านปิดรับออเดอร์ทาง LINE อยู่ตอนนี้ ดูเมนูได้ก่อนนะ</p>'
@@ -342,13 +342,13 @@ async function qrPicture() {
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d');
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#2F7FD6'; g.fillRect(0, 0, W, 120);
+  g.fillStyle = '#6B4A36'; g.fillRect(0, 0, W, 120);
   g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.font = '600 44px Mitr, sans-serif';
   g.fillText(ui.shop?.name || 'ชงสุดใจ', W / 2, 78);
   g.imageSmoothingEnabled = false; // keep the QR modules sharp
   g.drawImage(await loadImg(ui.qrUrl), 110, 170, 500, 500);
-  g.fillStyle = '#1F2A44'; g.font = '600 64px Mitr, sans-serif'; g.fillText(baht(o.total), W / 2, 770);
-  g.font = '400 34px "IBM Plex Sans Thai", sans-serif'; g.fillStyle = '#4A5672';
+  g.fillStyle = '#3E2A1F'; g.font = '600 64px Mitr, sans-serif'; g.fillText(baht(o.total), W / 2, 770);
+  g.font = '400 34px "IBM Plex Sans Thai", sans-serif'; g.fillStyle = '#6B4A36';
   g.fillText(`พร้อมเพย์ · คิว ${o.no}`, W / 2, 830);
   g.fillText('เปิดแอปธนาคาร › สแกน › เลือกรูปนี้', W / 2, 900);
   return new Promise(ok => c.toBlob(ok, 'image/png'));
