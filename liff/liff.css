@@ -73,3 +73,4 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .order-list .hist-card > button.btn { width: auto; display: inline-flex; justify-self: end; padding: 6px 14px; border-radius: 99px; }
 .shop-name { display: flex; align-items: center; gap: 8px; }
 .shop-name img { border-radius: 10px; box-shadow: var(--shadow); }
+.hist-clear { color: var(--danger); margin: 4px 0 12px; }

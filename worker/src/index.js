@@ -335,8 +335,16 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
         if (parts.length === 1 && req.method === 'POST') return send(await placeOrder(who, await req.json().catch(() => ({})), ctx), 201);
         if (parts.length === 1 && req.method === 'GET') {
           // the customer's order history, newest first (one equality filter: no composite index needed)
-          const [rows, { settings }] = await Promise.all([db.where(shop, 'orders', [['lineUserId', who.id]]), loadShop()]);
-          return send(rows.map(d => Shop.publicOrder(d.id, d.data, settings)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50));
+          // orders before the customer's "clear history" are left out; ones still open always show
+          const [rows, { settings }, c] = await Promise.all([db.where(shop, 'orders', [['lineUserId', who.id]]), loadShop(), db.get(`${shop}/customers/${who.id}`)]);
+          const since = Number(c?.data?.historyClearedAt) || 0;
+          return send(rows.filter(d => (d.data.createdAt || 0) > since || Shop.OPEN_STATUSES.includes(d.data.status))
+            .map(d => Shop.publicOrder(d.id, d.data, settings)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50));
+        }
+        // the customer clears their own history: hidden from them only (the shop's sales and their stamps stay)
+        if (parts.length === 2 && parts[1] === 'clear-history' && req.method === 'POST') {
+          await db.commit([db.mergeIncrement(`${shop}/customers/${who.id}`, { historyClearedAt: Date.now() }, {})]);
+          return send({ ok: true });
         }
         const id = parts[1];
         if (parts.length === 2 && req.method === 'GET') {

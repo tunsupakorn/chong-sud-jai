@@ -285,6 +285,40 @@ export async function saveMany(list) {
   return items.length;
 }
 
+// ---- "ลบประวัติทั้งหมด" (owner): what = { tx, orders, customers } ----
+// tx: every income/expense row and its slip photo · orders: finished/cancelled LINE orders (open ones stay)
+// customers: LINE customers' stamps and visit counts. Menu, photos and settings are never touched.
+export async function wipeHistory(what) {
+  const n = { tx: 0, orders: 0, customers: 0 };
+  if (state.mode !== 'cloud') {
+    if (what.tx) {
+      n.tx = state.tx.length;
+      Object.keys(localStorage).filter(k => k.startsWith('jj_slip_')).forEach(k => localStorage.removeItem(k));
+      state.tx = []; writeLocal();
+    }
+    return n;
+  }
+  const { F, db } = fb;
+  const all = async name => (await F.getDocs(F.collection(...userPath(name)))).docs;
+  const refs = [];
+  const openIds = new Set(state.orders.map(o => o.id));
+  if (what.tx) {
+    const tx = await all('tx'); n.tx = tx.length; refs.push(...tx.map(d => d.ref));
+    refs.push(...(await all('slips')).filter(d => !openIds.has(d.id.replace(/^line-/, ''))).map(d => d.ref));
+  }
+  if (what.orders) {
+    const done = (await all('orders')).filter(d => !['new', 'accepted', 'ready'].includes(d.data().status));
+    n.orders = done.length; refs.push(...done.map(d => d.ref));
+  }
+  if (what.customers) { const c = await all('customers'); n.customers = c.length; refs.push(...c.map(d => d.ref)); }
+  for (let i = 0; i < refs.length; i += 400) {
+    const b = F.writeBatch(db);
+    refs.slice(i, i + 400).forEach(r => b.delete(r));
+    await b.commit();
+  }
+  return n;
+}
+
 // slip photos: one doc per transaction in users/{uid}/slips/{txId}, kept apart so the tx list stays light
 export async function saveSlipImage(id, data) {
   if (state.mode === 'cloud') return fb.F.setDoc(fb.F.doc(...userPath('slips', id)), { data, at: Date.now() });
