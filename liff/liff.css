@@ -36,7 +36,7 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .way-btn .way-emoji { font-size: 2rem; line-height: 1.2; }
 .way-btn b { font-family: var(--display); font-size: 1.1rem; font-weight: 500; }
 .way-btn small { color: var(--muted); font-size: .8rem; }
-.way-btn[aria-selected="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: 0 4px 14px rgba(47, 127, 214, .18); }
+.way-btn[aria-selected="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: 0 4px 14px rgba(107, 74, 54, .18); }
 .way-btn[aria-selected="true"] small { color: var(--accent); }
 .way-btn:disabled { opacity: .45; cursor: not-allowed; }
 .way-warn { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--orange) 14%, var(--surface)); color: var(--text); font-size: .92rem; }
@@ -53,9 +53,9 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .det .qty { display: flex; align-items: center; gap: 12px; }
 .det-n { font-family: var(--display); font-size: 1.3rem; min-width: 1.5em; text-align: center; }
 /* promotion banner */
-.promo { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #CFE6FF, #E6DCFF); }
+.promo { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #F6EBDD, #F3D6C4); }
 .promo img { display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; }
-.promo p { margin: 0; padding: 10px 14px; font-family: var(--display); font-size: 1.05rem; color: #1F2A44; }
+.promo p { margin: 0; padding: 10px 14px; font-family: var(--display); font-size: 1.05rem; color: #3E2A1F; }
 .btn-col a.btn { display: flex; justify-content: center; text-decoration: none; color: var(--text); }
 /* order history */
 .hist-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 8px 12px; font: inherit; font-size: .9rem; color: var(--text); cursor: pointer; white-space: nowrap; }
@@ -71,3 +71,5 @@ body.liff .toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 .order-list .hist-card button.hist-main { display: grid; justify-content: stretch; }
 .hist-card .hist-main > span { width: 100%; }
 .order-list .hist-card > button.btn { width: auto; display: inline-flex; justify-self: end; padding: 6px 14px; border-radius: 99px; }
+.shop-name { display: flex; align-items: center; gap: 8px; }
+.shop-name img { border-radius: 10px; box-shadow: var(--shadow); }

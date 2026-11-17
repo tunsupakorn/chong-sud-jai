@@ -43,12 +43,12 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       { type: 'text', text: v, size: 'sm', wrap: true, flex: 5, ...(bold ? { weight: 'bold' } : {}) }] });
     return { type: 'flex', altText: `${title} ${o.no} · ${baht(o.total)}`, contents: { type: 'bubble',
       body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [
-        { type: 'text', text: title, size: 'sm', color: '#2F7FD6', weight: 'bold' },
+        { type: 'text', text: title, size: 'sm', color: '#6B4A36', weight: 'bold' },
         { type: 'text', text: `คิว ${o.no}`, size: 'xxl', weight: 'bold' },
         row('รายการ', itemsText(o)), row('ยอด', baht(o.total), true), row('ชำระ', payText(o)),
         row('สถานะ', Shop.STATUS_TEXT[o.status] || o.status), row('รับ', pickupText(o))] },
       footer: { type: 'box', layout: 'vertical', contents: [
-        { type: 'button', style: 'primary', color: '#2F7FD6', action: { type: 'uri', label: 'ดูออเดอร์', uri: liffUrl(`?order=${id}`) } }] } } };
+        { type: 'button', style: 'primary', color: '#6B4A36', action: { type: 'uri', label: 'ดูออเดอร์', uri: liffUrl(`?order=${id}`) } }] } } };
   }
   const orderButton = (text, label = '🥤 สั่งเครื่องดื่ม') => ({ type: 'template', altText: text,
     template: { type: 'buttons', text: text.slice(0, 160), actions: [{ type: 'uri', label, uri: liffUrl() }] } });
@@ -89,9 +89,9 @@ export function createApp(env, fetchFn = (...a) => fetch(...a)) {
       body: { type: 'box', layout: 'vertical', spacing: 'xs', contents: [
         ...(m.photo && m.photoType === 'jpeg' ? [] : [{ type: 'text', text: m.emoji || '🥤', size: '3xl', align: 'center' }]),
         { type: 'text', text: m.name, weight: 'bold', size: 'sm', wrap: true },
-        { type: 'text', text: price(m), size: 'sm', color: '#2F7FD6', weight: 'bold' }] },
+        { type: 'text', text: price(m), size: 'sm', color: '#6B4A36', weight: 'bold' }] },
       footer: { type: 'box', layout: 'vertical', contents: [
-        { type: 'button', style: 'primary', color: '#2F7FD6', height: 'sm', action: { type: 'uri', label: 'สั่งเลย', uri: liffUrl(`?item=${encodeURIComponent(m.id)}`) } }] } });
+        { type: 'button', style: 'primary', color: '#6B4A36', height: 'sm', action: { type: 'uri', label: 'สั่งเลย', uri: liffUrl(`?item=${encodeURIComponent(m.id)}`) } }] } });
     const all = { type: 'bubble', size: 'micro', body: { type: 'box', layout: 'vertical', justifyContent: 'center', spacing: 'md', contents: [
       { type: 'text', text: '🧋', size: '3xl', align: 'center' }, { type: 'text', text: 'ดูเมนูทั้งหมด', weight: 'bold', align: 'center', wrap: true }] },
       footer: { type: 'box', layout: 'vertical', contents: [{ type: 'button', style: 'primary', color: '#06C755', height: 'sm', action: { type: 'uri', label: 'เปิดหน้าสั่ง', uri: liffUrl() } }] } };
