@@ -440,6 +440,7 @@ export async function deleteMenuPhoto(id) {
 export async function pushState() {
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (/\bLine\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent)) return 'inapp'; // LINE / Facebook in-app browsers cannot receive push
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return ios && !standalone ? 'ios-install' : 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
   const reg = await navigator.serviceWorker.getRegistration();
@@ -463,12 +464,27 @@ export async function lineQuota() {
   return data;
 }
 const b64ToBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+// "Registration failed - push service error": the phone could not reach Google's push service (FCM).
+// Often a one-off: start clean and try once more; if it still fails, the app shows what to check on the phone.
+async function pushSubscribe(reg) {
+  const opts = { userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_KEY) };
+  try { return await reg.pushManager.subscribe(opts); } catch (e) {
+    if (e.name === 'NotAllowedError') throw new Error('ไม่ได้อนุญาตการแจ้งเตือน เปิดได้ที่ตั้งค่าของเบราว์เซอร์/ระบบ');
+    console.warn('push subscribe', e);
+  }
+  await (await reg.pushManager.getSubscription())?.unsubscribe().catch(() => {});
+  await new Promise(r => setTimeout(r, 1500));
+  try { return await reg.pushManager.subscribe(opts); } catch (e) {
+    console.warn('push subscribe retry', e);
+    throw Object.assign(new Error('เครื่องนี้ลงทะเบียนแจ้งเตือนไม่สำเร็จ ดูวิธีแก้ด้านบน'), { code: 'push-service' });
+  }
+}
 export async function pushEnable() {
   if (!VAPID_KEY || !LINE_API) throw new Error('ยังไม่ได้ตั้งค่าการแจ้งเตือน');
   if (await Notification.requestPermission() !== 'granted') throw new Error('ไม่ได้อนุญาตการแจ้งเตือน เปิดได้ที่ตั้งค่าของเบราว์เซอร์/ระบบ');
   const reg = await navigator.serviceWorker.register('sw.js');
   await navigator.serviceWorker.ready;
-  const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_KEY) });
+  const sub = (await reg.pushManager.getSubscription()) || await pushSubscribe(reg);
   const device = /Android/.test(navigator.userAgent) ? 'Android' : /iPad|iPhone/.test(navigator.userAgent) ? 'iPhone/iPad' : 'คอมพิวเตอร์';
   await shopPost('/shop/push', { endpoint: sub.endpoint, device, test: true });
 }

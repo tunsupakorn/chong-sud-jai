@@ -534,3 +534,7 @@ a.btn.line-btn { color: #fff; }
 .wipe-btn { display: block; margin-top: 12px; }
 .sheet-body.wipe { display: grid; gap: 12px; }
 .sheet-body.wipe .check { align-items: flex-start; line-height: 1.45; }
+.push-help { flex: 1 1 100%; margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--orange) 12%, var(--surface)); font-size: .88rem; line-height: 1.5; }
+.push-help ol { margin: 6px 0; padding-left: 20px; }
+.push-help li { margin: 3px 0; }
+.push-help small { color: var(--muted); }
