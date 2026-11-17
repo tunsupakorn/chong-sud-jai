@@ -1,4 +1,4 @@
-// ค่า Firebase ของโปรเจกต์ร้าน (จุกจิกการค้า) — ใส่หลังสร้างโปรเจกต์
+// ค่า Firebase ของโปรเจกต์ร้าน (ชงสุดใจ) — ใส่หลังสร้างโปรเจกต์
 // ค่าพวกนี้ไม่ใช่ความลับ — ความปลอดภัยมาจาก Firestore Rules (ไฟล์ firestore.rules)
 export const firebaseConfig = {
   apiKey: "AIzaSyACvxxO2OQ4mFyG_TzYQnw3-76OEkf19GY",

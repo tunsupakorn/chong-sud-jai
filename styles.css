@@ -319,7 +319,7 @@ form.row select { width: auto; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
-/* ---- จุกจิกการค้า: shop pieces ---- */
+/* ---- ชงสุดใจ: shop pieces ---- */
 .pos { color: var(--income); }
 .neg { color: var(--expense); }
 .card.today h3 { margin: 0; }

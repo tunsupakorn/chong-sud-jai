@@ -1,14 +1,14 @@
 /**
- * จุกจิก JukJik → Google Sheet mirror
+ * ชงสุดใจ Chong Sud Jai → Google Sheet mirror
  *
- * แอปจุกจิกส่งรายการทั้งหมดมาที่ web app นี้ แล้วสคริปต์เขียนทับลงชีตให้ตรงกับแอปเสมอ
+ * แอปชงสุดใจส่งรายการทั้งหมดมาที่ web app นี้ แล้วสคริปต์เขียนทับลงชีตให้ตรงกับแอปเสมอ
  * (Firebase ยังเป็นที่เก็บหลัก ชีตนี้มีไว้ดู/วิเคราะห์ — แก้ในชีตจะถูกเขียนทับรอบถัดไป)
  *
  * ความปลอดภัย: ครั้งแรกที่แอปเชื่อมต่อ จะส่งรหัสลับ (token) มาจับคู่ไว้
  * หลังจากนั้นทุกคำขอต้องมีรหัสเดียวกัน — ถ้าต้องการจับคู่ใหม่ ให้รัน resetPairing()
  */
 
-const APP_URL = 'https://tunsupakorn.github.io/jukjik-kaa/';
+const APP_URL = 'https://tunsupakorn.github.io/chong-sud-jai/';
 const SHEET_TX = 'รายการ';
 const SHEET_MONTH = 'สรุปรายเดือน';
 const SHEET_CAT = 'แยกหมวด';
@@ -28,10 +28,10 @@ function setup() {
   Logger.log('พร้อมแล้ว: ' + ss.getUrl());
 }
 
-// ---- เมนู 🐣 จุกจิก ในชีต: พาเชื่อมกับแอปทีละขั้น ----
+// ---- เมนู 🐣 ชงสุดใจ ในชีต: พาเชื่อมกับแอปทีละขั้น ----
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('🐣 จุกจิก')
-    .addItem('เชื่อมกับแอปจุกจิก (เริ่มที่นี่)', 'showConnect')
+  SpreadsheetApp.getUi().createMenu('🐣 ชงสุดใจ')
+    .addItem('เชื่อมกับแอปชงสุดใจ (เริ่มที่นี่)', 'showConnect')
     .addSeparator()
     .addItem('ยกเลิกการจับคู่กับแอป', 'resetPairingMenu')
     .addToUi();
@@ -59,7 +59,7 @@ function showConnect() {
     const link = APP_URL + '#connect=' + encodeURIComponent(url) + '&key=' + token;
     html = css + '<p>✅ ชีตนี้พร้อมแล้ว' + (paired ? ' (การเชื่อมเดิมจะถูกแทนที่ด้วยปุ่มนี้)' : '') + '</p>' +
       '<a href="' + esc(link) + '" target="_blank" style="display:block;text-align:center;background:#FFC83D;color:#2B2118;font-weight:bold;' +
-      'text-decoration:none;border-radius:12px;padding:14px;font-size:16px;margin:8px 0">🐣 เปิดแอปจุกจิกและเชื่อมต่อให้อัตโนมัติ</a>' +
+      'text-decoration:none;border-radius:12px;padding:14px;font-size:16px;margin:8px 0">🐣 เปิดแอปชงสุดใจและเชื่อมต่อให้อัตโนมัติ</a>' +
       '<p>กดปุ่มด้านบน แอปจะเปิดขึ้นแล้วถามยืนยัน กด <b>ตกลง</b> — เสร็จแล้ว! (ต้องล็อกอินแอปไว้ก่อน)</p>' +
       '<details><summary style="cursor:pointer;color:#8C7C66">เชื่อมจากมือถือ / คัดลอกลิงก์เอง</summary>' +
       '<div class="box">ส่งลิงก์นี้ไปเปิดในเครื่องที่ใช้แอป (เช่น ส่ง LINE หาตัวเอง)<input id="u" value="' + esc(link) + '" readonly onclick="this.select()">' +
@@ -72,14 +72,14 @@ function showConnect() {
       '<li>ตรงไอคอนฟันเฟือง เลือก <b>เว็บแอป</b> (Web app)</li>' +
       '<li>ตั้งค่า: เรียกใช้ในฐานะ <b>ฉัน</b> · ผู้มีสิทธิ์เข้าถึง <b>ทุกคน</b> (Execute as: Me · Who has access: Anyone)</li>' +
       '<li>กด <b>ทำให้ใช้งานได้</b> แล้วกด <b>ให้สิทธิ์</b> › เลือกบัญชี › Advanced › Go to … › <b>Allow</b></li>' +
-      '<li>กลับมาที่ชีตนี้ เปิดเมนู <b>🐣 จุกจิก › เชื่อมกับแอปจุกจิก</b> อีกครั้ง จะมีปุ่มเปิดแอปและเชื่อมต่อให้อัตโนมัติ</li></ol>';
+      '<li>กลับมาที่ชีตนี้ เปิดเมนู <b>🐣 ชงสุดใจ › เชื่อมกับแอปชงสุดใจ</b> อีกครั้ง จะมีปุ่มเปิดแอปและเชื่อมต่อให้อัตโนมัติ</li></ol>';
   }
-  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(460).setHeight(url ? 340 : 420), '🐣 เชื่อมกับแอปจุกจิก');
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(460).setHeight(url ? 340 : 420), '🐣 เชื่อมกับแอปชงสุดใจ');
 }
 
 function resetPairingMenu() {
   const ui = SpreadsheetApp.getUi();
-  if (ui.alert('ยกเลิกการจับคู่กับแอป?', 'ใช้เมื่อต้องการเชื่อมกับบัญชีจุกจิกใหม่ ข้อมูลในชีตยังอยู่', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  if (ui.alert('ยกเลิกการจับคู่กับแอป?', 'ใช้เมื่อต้องการเชื่อมกับบัญชีชงสุดใจใหม่ ข้อมูลในชีตยังอยู่', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
   resetPairing();
   ui.alert('ยกเลิกแล้ว เปิดแอปแล้วกดเชื่อมต่อใหม่ได้เลย');
 }
@@ -128,11 +128,11 @@ function doPost(e) {
   return json({ ok: false, error: 'unknown-action' });
 }
 
-// ---- เก็บรูปสลิปใน Google Drive: "จุกจิก JukJik — สลิป/2026-11/..." ----
-const SLIP_ROOT = 'จุกจิก JukJik — สลิป';
+// ---- เก็บรูปสลิปใน Google Drive: "ชงสุดใจ Chong Sud Jai — สลิป/2026-11/..." ----
+const SLIP_ROOT = 'ชงสุดใจ Chong Sud Jai — สลิป';
 
 // Built-in Drive service. The script only ever creates and writes inside the
-// "จุกจิก JukJik — สลิป" folder; folder ids are remembered in Script Properties.
+// "ชงสุดใจ Chong Sud Jai — สลิป" folder; folder ids are remembered in Script Properties.
 function storedFolder(key, create) {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty(key);
@@ -311,12 +311,12 @@ function writeInfo(count, device) {
   sh.clear();
   const tz = Session.getScriptTimeZone() || 'Asia/Bangkok';
   const values = [
-    ['🐣 จุกจิก JukJik — สำเนาข้อมูลอัตโนมัติ', ''],
+    ['🐣 ชงสุดใจ Chong Sud Jai — สำเนาข้อมูลอัตโนมัติ', ''],
     ['ซิงก์ล่าสุด', Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm:ss')],
     ['จำนวนรายการ', count],
     ['ส่งจาก', device],
     ['', ''],
-    ['⚠️ หมายเหตุ', 'ชีตนี้ถูกเขียนทับจากแอปจุกจิกทุกครั้งที่มีการเปลี่ยนแปลง ถ้าแก้ไขในชีตนี้ จะหายในการซิงก์รอบถัดไป'],
+    ['⚠️ หมายเหตุ', 'ชีตนี้ถูกเขียนทับจากแอปชงสุดใจทุกครั้งที่มีการเปลี่ยนแปลง ถ้าแก้ไขในชีตนี้ จะหายในการซิงก์รอบถัดไป'],
     ['', 'ถ้าต้องการทำสูตร/กราฟเพิ่ม ให้สร้างชีตใหม่ (แท็บใหม่) แล้วอ้างอิงข้อมูลจากชีต "รายการ"'],
   ];
   sh.getRange(1, 1, values.length, 2).setValues(values);
